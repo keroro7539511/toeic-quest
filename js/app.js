@@ -1514,6 +1514,19 @@
 
   Speech.init();
   // 等 exam.js 載入後再畫首頁
+  // GitHub Pages 會讓瀏覽器快取 index.html 10 分鐘：打開時在背景抓最新的 index.html，
+  // 版本號（style.css?v=）不同就自動重新整理一次，朋友不用手動強制重新整理
+  (function checkNewVersion() {
+    const cur = (document.querySelector('link[href*="style.css"]')?.getAttribute('href').match(/v=(\d+)/) || [])[1];
+    if (!cur || location.protocol === 'file:') return;
+    fetch(location.pathname + '?_=' + Date.now(), { cache: 'no-store' }).then((r) => r.text()).then((html) => {
+      const latest = (html.match(/style\.css\?v=(\d+)/) || [])[1];
+      if (!latest || latest === cur) return;
+      try { if (sessionStorage.getItem('tqReloaded') === latest) return; sessionStorage.setItem('tqReloaded', latest); } catch (e) { return; }
+      location.reload();
+    }).catch(() => { /* 離線就算了 */ });
+  })();
+
   // 有設定雲端（js/cloud-config.js）時先登入；沒設定或載入失敗就照舊用本機進度
   document.addEventListener('DOMContentLoaded', () => (window.Cloud ? window.Cloud.boot() : renderHome()));
 })();
