@@ -730,7 +730,7 @@
           <div class="hearts" id="monsterHp">${'💚'.repeat(monster.hp)}</div>
         </div>` : ''}
       ${s.timer ? '<div class="timer"><div id="timerbar"></div></div>' : ''}
-      <div class="qcard${SPLIT_SECTIONS.includes(q.section) ? ' split' : ''}"><div class="q-left">
+      <div class="qcard${SPLIT_SECTIONS.includes(q.section) ? ' split' : ''}${q.kind === 'group' ? ' group' : ''}"><div class="q-left">
         <div class="qtag">${q.tag}${q.isNew ? '<span class="new">NEW</span>' : ''}</div>
         <div class="qprompt">${q.prompt}<div id="hintText"></div></div>
         ${q.audio ? `<div class="audio-row">
@@ -741,7 +741,7 @@
             ${q.kind === 'group' ? '<button class="btn-ghost" id="showLines">🔍 逐句精聽</button><button class="btn-ghost" id="showScript">📜 逐字稿</button>' : ''}
           </div>` : ''}
         ${q.kind === 'group' && !q.redo && S.settings.preview > 0 ? `<div class="preview-bar" id="previewBar">
-            <div>📖 <b>預讀題目</b>：<b id="pvSec">${S.settings.preview}</b> 秒後開始播放。先看三題在問什麼，點單字可以畫重點。</div>
+            <div>📖 <b>預讀題目</b>：<b id="pvSec">${S.settings.preview}</b> 秒後開始播放<span class="pv-tip">。先看三題在問什麼，點單字可以畫重點。</span></div>
             <div class="pvtrack"><i id="pvFill"></i></div>
             <button class="btn-secondary" id="pvSkip">讀好了，開始播放 ▶</button>
           </div>` : ''}
@@ -767,6 +767,9 @@
     // 分欄時題目句子放右邊、緊貼選項（文章 / 照片 / 圖表留在左邊）
     const qt = document.querySelector('.qcard.split .qprompt > .qtext');
     if (qt) document.querySelector('.q-right').prepend(qt);
+    // 題組（Part 3/4 一次三題）：圖表移到播放控制的右邊，三題在下面並排（電腦版）
+    const gr = document.querySelector('.qcard.group .qprompt > .graphic');
+    if (gr) { const box = Object.assign(document.createElement('div'), { className: 'q-graphic' }); box.append(gr); document.querySelector('.q-left').append(box); }
     $('#quit').onclick = goHome;
     if (q.audio) {
       $('#play').onclick = () => Speech.play(q.audio, q.audioFile);
@@ -788,12 +791,29 @@
     if (q.hintable) $('#hint').onclick = () => showHint(q);
     if (q.kind === 'group') {
       s.sel = {};
+      const ans = document.querySelector('.qcard.group .answers');
+      ans.after($('#submitGroup'));
+      // 手機：三題的題目句子一直列在上面（預讀時一眼看完），點哪題下面就換成那題的選項
+      const stem = (sub) => { const d = document.createElement('div'); d.innerHTML = sub.qRaw ? esc(sub.qRaw) : sub.qText; return esc(d.textContent); };
+      ans.insertAdjacentHTML('beforebegin', `<div class="gtabs">${q.subs.map((sub, j) => `<button data-tab="${j}" class="${j ? '' : 'on'}"><span class="gt-n">${j + 1}</span><span class="gt-q">${stem(sub)}</span></button>`).join('')}</div>`);
+      const cards = [...ans.querySelectorAll('.gq')];
+      const goCard = (j) => ans.scrollTo({ left: cards[j].offsetLeft - ans.offsetLeft, behavior: 'smooth' });
+      document.querySelectorAll('.gtabs [data-tab]').forEach((t) => { t.onclick = () => goCard(+t.dataset.tab); });
+      ans.addEventListener('scroll', () => {
+        const j = Math.round(ans.scrollLeft / Math.max(1, ans.clientWidth));
+        document.querySelectorAll('.gtabs [data-tab]').forEach((t) => t.classList.toggle('on', +t.dataset.tab === j));
+      }, { passive: true });
+      const swipe = () => getComputedStyle(ans).overflowX === 'auto';   // 只有手機版是左右滑
       document.querySelectorAll('.opt').forEach((b) => {
         b.onclick = () => {
           if (s.answered) return;
-          s.sel[b.dataset.sub] = +b.dataset.i;
-          document.querySelectorAll(`.opt[data-sub="${b.dataset.sub}"]`).forEach((x) => x.classList.toggle('sel', x === b));
+          const j = +b.dataset.sub;
+          s.sel[j] = +b.dataset.i;
+          document.querySelectorAll(`.opt[data-sub="${j}"]`).forEach((x) => x.classList.toggle('sel', x === b));
+          document.querySelector(`.gtabs [data-tab="${j}"]`).classList.add('picked');
           $('#submitGroup').disabled = Object.keys(s.sel).length < q.subs.length;
+          const next = q.subs.findIndex((_, k) => k > j && s.sel[k] == null);
+          if (swipe() && next > 0) setTimeout(() => goCard(next), 250);
         };
       });
       $('#submitGroup').onclick = answerGroup;
@@ -889,6 +909,7 @@
     const gained = record(q, correct);
     const last = s.results[s.results.length - 1];
     if (last) last.chosen = q.kind === 'choice' && choice >= 0 ? q.options[choice] : null;
+    if (s.onAnswer) s.onAnswer(s);
     Sfx.play(correct ? 'ok' : 'ng');
     if (s.boss) bossEffect(correct);
     if (s.mode === 'monster' && correct && !S.mistakes[q.id]) {
@@ -982,6 +1003,7 @@
     if (!s || s.answered) return;
     const g = s.questions[s.i];
     s.answered = true;
+    const card = document.querySelector('.qcard'); if (card) card.classList.add('answered');
     let right = 0, gained = 0;
     g.subs.forEach((sub, j) => {
       const choice = s.sel[j];
@@ -993,6 +1015,8 @@
         else if (i === choice) b.classList.add('wrong');
       });
       $('#gfb' + j).innerHTML = `<div class="fb ${ok ? 'ok' : 'ng'}"><b>${ok ? '✅ 答對' : '❌ 答錯'}</b>${sub.note}</div>`;
+      const tab = document.querySelector(`.gtabs [data-tab="${j}"]`);
+      if (tab) { tab.classList.add(ok ? 'ok' : 'ng'); tab.querySelector('.gt-n').textContent = ok ? '✅' : '❌'; }
       // 重寫只是練習：不給 XP、不動統計和錯題怪物
       if (!g.redo) gained += record(sub, ok);
       if (ok) right++;
@@ -1163,11 +1187,11 @@
     const s = session, n = s.results.length, total = s.questions.length;
     showModal(`<h2>要離開嗎？</h2>
       ${s.modeKey === 'daily'
-        ? '<p>每日挑戰<b>中途離開不會記成績</b>，之後可以重新開始（題目一樣）。</p>'
+        ? `<p>每日挑戰<b>離開就結束</b>，不能再回來繼續。目前答對 ${s.correct}/${total}，<b>沒作答的 ${total - n} 題算答錯</b>。</p>`
         : `<p>這一回合已作答 <b>${n}/${total}</b> 題。答過的題目和 XP 都已經記錄，沒做完的題目不會保留。</p>`}
       <button class="btn-primary" data-close>繼續作答</button>
       <button class="btn-secondary" id="leaveYes">離開</button>`);
-    $('#leaveYes').onclick = () => { closeModal(); onLeave(); };
+    $('#leaveYes').onclick = () => { closeModal(); if (s.onQuit) { s.done = true; Speech.stop(); stopTimer(); s.onQuit(s); } else onLeave(); };
   }
   function goHome() {
     if (window.Cloud && !window.Cloud.loggedIn()) return;            // 登入畫面

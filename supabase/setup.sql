@@ -82,3 +82,25 @@ create policy "read results" on public.daily_results for select to authenticated
 );
 create policy "insert own result" on public.daily_results for insert to authenticated with check (user_id = auth.uid());
 grant select, insert on public.daily_results to authenticated;
+
+-- ── 每日挑戰只能挑戰一次：開始就建立「進行中」紀錄，結束（做完或中途離開）後不能再改 ──
+alter table public.daily_results add column if not exists finished boolean not null default true;
+alter table public.daily_results alter column finished set default false;
+
+-- 自己當天「已結束」了沒？（進行中不算，避免邊做邊偷看別人的答案）
+create or replace function public.did_daily(d text) returns boolean
+language sql security definer stable set search_path = public as $$
+  select exists (select 1 from public.daily_results where user_id = auth.uid() and day = d and finished)
+$$;
+
+drop policy if exists "read results" on public.daily_results;
+drop policy if exists "update own unfinished" on public.daily_results;
+-- 自己的永遠看得到；別人的只看已結束的，而且今天的要自己也結束了才看得到
+create policy "read results" on public.daily_results for select to authenticated using (
+  user_id = auth.uid()
+  or (finished and (day < to_char(now() at time zone 'Asia/Taipei', 'YYYY-MM-DD') or public.did_daily(day)))
+);
+-- 只能更新自己「進行中」的那一筆；一旦 finished = true 就鎖住
+create policy "update own unfinished" on public.daily_results for update to authenticated
+  using (user_id = auth.uid() and not finished) with check (user_id = auth.uid());
+grant update on public.daily_results to authenticated;

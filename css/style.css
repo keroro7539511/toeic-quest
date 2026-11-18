@@ -570,6 +570,66 @@ body.exam-wide #app { max-width: 1180px; }
 .brand:hover { background: var(--line); }
 .brand-ic { font-size: 20px; align-self: center; }
 .brand b { font-size: 17px; font-weight: 800; letter-spacing: .2px; color: var(--text); }
-.brand small { font-size: 12px; color: var(--muted); }
 body:has(.auth) .topbar { display: none; }
-@media (max-width: 380px) { .brand small { display: none; } }
+
+/* 電腦版 Part 3/4 題組：上面是播放控制（有圖表就放右邊），下面三題並排，不用上下捲就能預讀完 */
+@media (min-width: 900px) {
+  #app:has(.qcard.group) { max-width: 1280px; }
+  .qcard.split.group { display: block; }
+  .qcard.group .q-left { position: static; max-height: none; overflow: visible; display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 28px; margin-bottom: 14px; }
+  .qcard.group .q-left:has(.q-graphic) { grid-template-columns: minmax(0, 1fr) minmax(0, 440px); }
+  .qcard.group .q-left > * { grid-column: 1; }
+  .qcard.group .q-left > .q-graphic { grid-column: 2; grid-row: 1 / span 8; align-self: start; }
+  .qcard.group .q-graphic .graphic { margin: 0; }
+  .qcard.group .qprompt { margin-bottom: 10px; }
+  .qcard.group .answers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+  .qcard.group .gq { border: 1px solid var(--line); border-radius: 14px; padding: 12px; gap: 6px; height: 100%; }
+  .qcard.group .gq:first-child { padding-top: 12px; }
+  .qcard.group .gq .qtext { font-size: 15px; line-height: 1.4; min-height: 2.8em; }
+  .qcard.group .opt { padding: 8px 10px; gap: 8px; font-size: 14.5px; border-radius: 10px; }
+  .qcard.group .opt .letter { width: 24px; height: 24px; font-size: 12px; border-radius: 7px; }
+  .qcard.group #submitGroup { grid-column: 1 / -1; margin-top: 0; }
+}
+
+/* 手機版 Part 3/4 題組：三題的題目句子一直列在上面（預讀一眼看完），下面只放目前這題的選項；
+   點題目或左右滑切換，選完自動到下一題 */
+.gtabs { display: none; }
+@media (max-width: 899px) {
+  .gtabs { display: flex; flex-direction: column; gap: 6px; margin: 2px 0 12px; }
+  .gtabs button { display: flex; align-items: flex-start; gap: 10px; text-align: left; padding: 8px 10px; border-radius: 12px;
+    border: 2px solid var(--line); background: var(--bg); font-size: 14.5px; line-height: 1.35; color: var(--text); }
+  .gtabs .gt-n { flex: none; min-width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center;
+    background: var(--line); font-weight: 800; font-size: 12px; color: var(--muted); }
+  .gtabs .gt-q { font-weight: 600; }
+  .gtabs button.picked .gt-n { background: color-mix(in srgb, var(--primary) 40%, var(--line)); color: var(--text); }
+  .gtabs button.on { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, var(--card)); }
+  .gtabs button.on .gt-n { background: var(--primary); color: #fff; }
+  .gtabs button.ok { border-color: var(--ok); }
+  .gtabs button.ng { border-color: var(--ng); }
+  .gtabs button.ok .gt-n, .gtabs button.ng .gt-n { background: transparent; }
+  .qcard.group .answers { flex-direction: row; overflow-x: auto; scroll-snap-type: x mandatory; gap: 14px; scrollbar-width: none; overscroll-behavior-x: contain; }
+  .qcard.group .answers::-webkit-scrollbar { display: none; }
+  .qcard.group .gq { flex: 0 0 100%; scroll-snap-align: start; border-top: 0; padding: 0; }
+  .qcard.group .gq > .qtext { display: none; }          /* 題目句子已經在上面的清單裡 */
+  .qcard.group .opt { padding: 10px 12px; font-size: 15px; }
+  .qcard.group #submitGroup { margin-top: 14px; }
+  /* 控制列精簡一點，讓題目和選項在一個畫面內 */
+  .qcard.group .qtag { margin-bottom: 4px; }
+  .qcard.group .audio-row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .qcard.group .audio-row::-webkit-scrollbar { display: none; }
+  .qcard.group .btn-audio, .qcard.group .btn-pause { padding: 7px 12px; flex: none; }
+  .qcard.group .speed { flex: none; }
+  .qcard.group .speed button { padding: 5px 7px; font-size: 12px; }
+  .qcard.group:not(.answered) #showLines, .qcard.group:not(.answered) #showScript { display: none; }   /* 精聽 / 逐字稿：送出後才出現 */
+  .qcard.group .preview-bar { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 8px; }
+  .qcard.group .preview-bar .pv-tip { display: none; }
+  .qcard.group .preview-bar .pvtrack { grid-column: 1 / -1; grid-row: 2; margin: 6px 0 0; }
+  .qcard.group .preview-bar .btn-secondary { width: auto; padding: 6px 10px; font-size: 12.5px; margin: 0; }
+  .qcard.group .graphic { font-size: 13px; padding: 8px 10px; }
+  .qcard.group .qprompt { font-size: 15px; margin-bottom: 8px; }
+  .qcard.group .audio-row { gap: 6px; margin-bottom: 8px; }
+  .qcard.group .audio-row button { font-size: 13px; }
+  .qcard.group .preview-bar { padding: 8px 10px; font-size: 13px; margin-bottom: 10px; }
+  .qcard.group .preview-bar .btn-secondary { padding: 8px; margin-top: 6px; }
+}
+@media (min-width: 900px) { .qcard.group #submitGroup { margin-top: 14px; } }

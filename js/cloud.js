@@ -224,6 +224,8 @@
   async function loadTodayResult() {
     const { data } = await sb.from('daily_results').select('*').eq('user_id', user.id).eq('day', dayId()).maybeSingle();
     todayResult = data || null;
+    // 上次做到一半就關掉網頁 / 斷線 → 直接結算（沒作答的算錯），不能再繼續
+    if (todayResult && !todayResult.finished && !dailyRun) await closeDaily(todayResult.answers || [], null);
   }
 
   function homeCard() {
@@ -236,33 +238,53 @@
   }
   document.addEventListener('click', (ev) => { if (ev.target.closest('#dailyCard')) openDaily(); });
 
+  // 每天只有一次機會：按下開始就先建一筆「進行中」的紀錄，每答一題存一次；做完或中途離開都會結算，之後不能再改
+  let dailyRun = null;   // { ids, started }：這個分頁正在進行的每日挑戰
+  const answersOf = (s, ids) => s.results.map((r, n) => ({ id: ids[n], ok: r.correct, pick: r.chosen }));
+  async function closeDaily(answers, ms) {
+    const correct = answers.filter((a) => a.ok).length;
+    const { error } = await sb.from('daily_results').update({ answers, correct, total: DAILY_N, ms, finished: true })
+      .eq('user_id', user.id).eq('day', dayId()).eq('finished', false);
+    if (error) T.toast('⚠️ 成績上傳失敗：' + error.message);
+    todayResult = { ...(todayResult || {}), answers, correct, total: DAILY_N, ms, finished: true };
+  }
+
   async function openDaily() {
     if (todayResult === undefined) await loadTodayResult();
     if (todayResult) return dailyView(dayId());
     T.showModal(`<h2>📅 每日挑戰</h2>
       <p>今天的 10 題（聽力 5、閱讀 5），所有人都是同一份題目。</p>
-      <ul class="rules"><li>只記<b>第一次完成</b>的成績，中途離開不算，可以重新開始。</li>
+      <ul class="rules"><li>每天<b>只有一次機會</b>：按下開始就算數，中途離開或關掉網頁就直接結算，<b>沒作答的題目算答錯</b>，不能再繼續。</li>
       <li>做完才看得到大家今天的結果：誰答對、誰答錯、各選了什麼。</li>
       <li>答錯的題目一樣會變成錯題怪物。</li></ul>
       <button class="btn-primary" id="dailyGo">開始挑戰</button><button class="btn-secondary" data-close>取消</button>`);
     $('#dailyGo').onclick = async () => {
       $('#dailyGo').disabled = true;
-      const ids = await getDailySet(dayId());
+      const day = dayId();
+      const ids = await getDailySet(day);
       const qs = (ids || []).map((id) => T.questionFromId(id)).filter(Boolean);
       if (qs.length < DAILY_N) { T.closeModal(); return T.toast('⚠️ 今天的題目載入失敗，請稍後再試'); }
-      const started = Date.now();
-      T.startSession({ modeKey: 'daily', questions: qs, onFinish: (s) => finishDaily(s, ids, started) });
+      const { error } = await sb.from('daily_results').insert({ user_id: user.id, day, answers: [], correct: 0, total: DAILY_N, finished: false });
+      if (error) {   // 已經挑戰過（例如在另一台裝置）
+        T.closeModal(); await loadTodayResult();
+        if (todayResult) return dailyView(day);
+        return T.toast('⚠️ 無法開始：' + error.message);
+      }
+      todayResult = { answers: [], correct: 0, total: DAILY_N, finished: false };
+      dailyRun = { ids, started: Date.now() };
+      T.startSession({
+        modeKey: 'daily', questions: qs,
+        onAnswer: (s) => { sb.from('daily_results').update({ answers: answersOf(s, ids), correct: s.correct }).eq('user_id', user.id).eq('day', day).eq('finished', false).then(() => {}); },
+        onQuit: (s) => { const run = dailyRun; dailyRun = null; closeDaily(answersOf(s, ids), Date.now() - run.started).then(() => T.renderHome()); },
+        onFinish: (s) => finishDaily(s, ids),
+      });
     };
   }
-  async function finishDaily(s, ids, started) {
-    const answers = s.results.map((r, n) => ({ id: ids[n], ok: r.correct, pick: r.chosen }));
-    const row = { user_id: user.id, day: dayId(), answers, correct: s.correct, total: answers.length, ms: Date.now() - started };
-    const { error } = await sb.from('daily_results').insert(row);
-    if (error && !/duplicate|23505/.test(error.message + error.code)) T.toast('⚠️ 成績上傳失敗：' + error.message);
-    else if (error) T.toast('今天已經挑戰過了，這次不重複計分');
-    await loadTodayResult();
+  async function finishDaily(s, ids) {
+    const run = dailyRun; dailyRun = null;
+    await closeDaily(answersOf(s, ids), run ? Date.now() - run.started : null);
     push();
-    dailyView(row.day, { xp: s.xpGained });
+    dailyView(dayId(), { xp: s.xpGained });
   }
 
   // 某一天的結果：排名、每題對錯表、點題號看題目和大家的選擇
@@ -280,7 +302,7 @@
     const rows = (res.data || []).slice().sort((a, b) => b.correct - a.correct || a.ms - b.ms);
     const mine = rows.find((r) => r.user_id === user.id);
     const locked = day === today && !mine;
-    const mmss = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
+    const mmss = (ms) => (ms == null ? '—' : `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`);
     const medal = ['🥇', '🥈', '🥉'];
     const nav = `<div class="dv-nav"><button class="btn-ghost" data-day="${shiftDay(day, -1)}">← 前一天</button><b>${day === today ? '今天' : day}</b>
       <button class="btn-ghost" data-day="${shiftDay(day, 1)}" ${day >= today ? 'disabled' : ''}>後一天 →</button></div>`;
