@@ -207,7 +207,7 @@
     return tests.find((id) => lastIdx(id) < 0) || tests.slice().sort((a, b) => lastIdx(a) - lastIdx(b))[0];
   }
   let pick = null;   // 大廳目前選的題本
-  function homeCard() {
+  function homeCard(part) {
     const mock = suggestMock();
     load();
     const last = lastOf((e) => e.testId !== MINI);
@@ -220,8 +220,10 @@
       const h = lastOf((e) => e.testId === MINI && e.mode === mode);
       return `${mode === 'listening' ? '約 25 題・15 分' : '約 25 題・20 分'}${h ? `・上次 ${mode === 'listening' ? h.L : h.R}` : '・每次題目不同'}`;
     };
-    return `${mock ? `<section class="modes"><button class="mode wide exam-card" id="examCard">
-        <span class="ic">📝</span><span><div class="nm">多益模擬考</div><div class="sub">${sub}</div></span></button></section>` : ''}
+    const top = mock ? `<section class="modes"><button class="mode wide exam-card" id="examCard">
+        <span class="ic">📝</span><span><div class="nm">多益模擬考</div><div class="sub">${sub}</div></span></button></section>` : '';
+    if (part === 'top') return top;
+    return `${part === 'mini' ? '' : top}
       <h2 class="sec-title">🎯 專項模擬（考試模式）</h2>
       <section class="modes">
         ${card('miniL', '🎧', '聽力小模考', miniSub('listening'))}

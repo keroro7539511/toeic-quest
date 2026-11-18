@@ -1227,6 +1227,7 @@
       <button class="mode ${cls}" data-mode="${key}"><span class="ic">${ic}</span><span><div class="nm">${nm}</div><div class="sub">${sub}</div></span></button>`;
 
     app().innerHTML = `
+      <div class="home"><aside class="home-side">
       <div class="home-top">
       <header class="hero">
         <div class="hero-top">
@@ -1257,7 +1258,9 @@
       </div>
 
       ${window.Cloud ? window.Cloud.homeCard() : ''}
-      ${window.Exam ? window.Exam.homeCard() : ''}
+      ${window.Exam ? window.Exam.homeCard('top') : ''}
+      </aside><div class="home-main">
+      ${window.Exam ? window.Exam.homeCard('mini') : ''}
 
       <h2 class="sec-title">🎧 聽力練習</h2>
       <section class="modes">
@@ -1289,7 +1292,8 @@
       </button></section>
       <section class="card"><button class="row-link" id="btnDex">
         <span style="font-size:26px">📖</span><span class="grow"><b>單字圖鑑</b> <small>熟練 ${masteredCount()}/${WORDS.length}</small></span><span>›</span>
-      </button></section>`;
+      </button></section>
+      </div></div>`;
 
     document.querySelectorAll('[data-mode]').forEach((b) => { b.onclick = () => MODES[b.dataset.mode].start(); });
     if (window.Exam) window.Exam.bindHome();

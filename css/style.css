@@ -520,7 +520,7 @@ body.exam-wide #app { max-width: 1180px; }
 /* ── 電腦版（寬螢幕）：首頁並排、題目左右分欄；手機版不受影響 ── */
 @media (min-width: 900px) {
   #app { max-width: 760px; }
-  #app:has(.home-top), #app:has(.qcard.split) { max-width: 1120px; }
+  #app:has(.home), #app:has(.qcard.split) { max-width: 1120px; }
 
   .home-top { display: grid; grid-template-columns: 1.35fr 1fr; gap: 14px; margin-bottom: 14px; }
   .home-top > * { margin-bottom: 0; }
@@ -534,3 +534,21 @@ body.exam-wide #app { max-width: 1180px; }
   .qcard.split .photo { max-height: 62vh; width: 100%; object-fit: contain; }
   .qcard:not(.split) { max-width: 720px; margin-left: auto; margin-right: auto; }
 }
+
+/* 電腦版首頁：左側欄（等級、分數、每日挑戰、模擬考）＋右側橫向小卡，一個畫面看完 */
+@media (min-width: 1000px) {
+  #app:has(.home) { max-width: 1280px; }
+  .home { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 28px; align-items: start; }
+  .home-side { position: sticky; top: 16px; }
+  .home-side .home-top { display: block; margin-bottom: 0; }
+  .home-side .home-top > * { margin-bottom: 14px; }
+  .home-side .modes { grid-template-columns: 1fr; margin-bottom: 14px; }
+  .home-side .mode.wide { grid-column: auto; padding: 16px; }
+  .home-main > .sec-title:first-child { margin-top: 0; }
+  .home-main .modes { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .home-main .mode, .home-main .mode.wide { grid-column: auto; flex-direction: row; align-items: center; gap: 12px; padding: 12px 14px; min-height: 68px; }
+  .home-main .mode .ic { font-size: 26px; width: 34px; text-align: center; flex: none; }
+  .home-main .mode:hover { transform: translateY(-1px); }
+  .home-main .card { margin-bottom: 10px; }
+}
+@media (min-width: 1280px) { .home-main .modes { grid-template-columns: repeat(4, 1fr); } }
