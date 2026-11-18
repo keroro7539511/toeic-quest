@@ -752,5 +752,7 @@
     }
   });
 
-  window.Exam = { homeCard, bindHome, active: () => onScreen };
+  // 正在作答（聽力 / 閱讀畫面上才有 ⏸ 暫時離開鈕）
+  const taking = () => !!E && onScreen && !!document.getElementById('exQuit');
+  window.Exam = { homeCard, bindHome, active: () => onScreen, taking, quitDialog };
 })();

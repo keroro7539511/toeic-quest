@@ -561,3 +561,15 @@ body.exam-wide #app { max-width: 1180px; }
   .home-main .card { margin-bottom: 10px; }
 }
 @media (min-width: 1600px) { .home-main .modes { grid-template-columns: repeat(4, 1fr); } }
+
+/* 頂部標題列（每一頁都有，點了回首頁；登入頁不顯示） */
+.topbar { position: sticky; top: 0; z-index: 40; background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.topbar-in { max-width: 1280px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; }
+.brand { display: flex; align-items: baseline; gap: 8px; padding: 4px 6px; border-radius: 10px; color: var(--text); }
+.brand:hover { background: var(--line); }
+.brand-ic { font-size: 20px; align-self: center; }
+.brand b { font-size: 17px; font-weight: 800; letter-spacing: .2px; color: var(--text); }
+.brand small { font-size: 12px; color: var(--muted); }
+body:has(.auth) .topbar { display: none; }
+@media (max-width: 380px) { .brand small { display: none; } }

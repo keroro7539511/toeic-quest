@@ -767,7 +767,7 @@
     // 分欄時題目句子放右邊、緊貼選項（文章 / 照片 / 圖表留在左邊）
     const qt = document.querySelector('.qcard.split .qprompt > .qtext');
     if (qt) document.querySelector('.q-right').prepend(qt);
-    $('#quit').onclick = () => { stopTimer(); renderHome(); };
+    $('#quit').onclick = goHome;
     if (q.audio) {
       $('#play').onclick = () => Speech.play(q.audio, q.audioFile);
       $('#pauseBtn').onclick = () => Speech.toggle();
@@ -1100,6 +1100,7 @@
   function finish() {
     Speech.stop(); stopTimer();
     const s = session;
+    s.done = true;
     const total = s.results.length;
     const acc = total ? Math.round((s.correct / total) * 100) : 0;
     let emoji = acc >= 90 ? '🏆' : acc >= 70 ? '🎉' : acc >= 50 ? '💪' : '🌱';
@@ -1155,6 +1156,37 @@
       <button class="btn-primary" data-close>繼續</button>
     </div>`);
   }
+
+  // ───────────────────────── 回首頁（作答中先確認）─────────────────────────
+  const inQuiz = () => !!session && !session.done && !!document.querySelector('.qcard');
+  function confirmLeave(onLeave) {
+    const s = session, n = s.results.length, total = s.questions.length;
+    showModal(`<h2>要離開嗎？</h2>
+      ${s.modeKey === 'daily'
+        ? '<p>每日挑戰<b>中途離開不會記成績</b>，之後可以重新開始（題目一樣）。</p>'
+        : `<p>這一回合已作答 <b>${n}/${total}</b> 題。答過的題目和 XP 都已經記錄，沒做完的題目不會保留。</p>`}
+      <button class="btn-primary" data-close>繼續作答</button>
+      <button class="btn-secondary" id="leaveYes">離開</button>`);
+    $('#leaveYes').onclick = () => { closeModal(); onLeave(); };
+  }
+  function goHome() {
+    if (window.Cloud && !window.Cloud.loggedIn()) return;            // 登入畫面
+    if (window.Exam && window.Exam.taking()) return window.Exam.quitDialog();
+    if (inQuiz()) return confirmLeave(() => { Speech.stop(); stopTimer(); renderHome(); });
+    closeModal();
+    renderHome();
+  }
+  // 瀏覽器 / 手機的「返回」：網頁內多墊一層紀錄。作答中按返回 → 先確認；在其他頁面 → 回首頁；已經在首頁 → 真的離開網站
+  const atHome = () => !!document.querySelector('.home');
+  try { history.replaceState({ tq: 'base' }, ''); history.pushState({ tq: 'app' }, ''); } catch (e) { /* 不支援就算了 */ }
+  window.addEventListener('popstate', () => {
+    const guard = () => { try { history.pushState({ tq: 'app' }, ''); } catch (e) { /* */ } };
+    if ((window.Cloud && !window.Cloud.loggedIn()) || (atHome() && !inQuiz())) { history.back(); return; }
+    guard();
+    goHome();
+  });
+
+  $('#brand').onclick = goHome;
 
   // ───────────────────────── 模式 ─────────────────────────
   const MODES = {
@@ -1452,7 +1484,7 @@
     renderGraphic, renderPassage, ROLE_ICON, LETTERS, transcriptHtml, multiline, checkBadges, levelInfo, showLevelUp, today,
     stopSession() { session = null; stopTimer(); },
     // 給 js/cloud.js（登入、雲端進度、排行榜）使用
-    defaultState, weekId, currentStreak, totalCorrect, questionFromId, startSession,
+    defaultState, weekId, currentStreak, totalCorrect, questionFromId, startSession, goHome,
     replaceState(data) { S = merge(defaultState(), data || {}); save(); },
   };
 
