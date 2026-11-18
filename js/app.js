@@ -687,6 +687,9 @@
   let timerId = null;
   const PRAISE = ['答對了！', '太強了！', 'Nice!', '完美！', '就是這樣！', 'Excellent!'];
 
+  // 電腦版左右分欄的題型（有照片、圖表或文章的）
+  const SPLIT_SECTIONS = ['part1', 'part3', 'part4', 'part6', 'part7'];
+
   function startSession(cfg) {
     Speech.stop();
     closeModal();
@@ -727,7 +730,7 @@
           <div class="hearts" id="monsterHp">${'💚'.repeat(monster.hp)}</div>
         </div>` : ''}
       ${s.timer ? '<div class="timer"><div id="timerbar"></div></div>' : ''}
-      <div class="qcard">
+      <div class="qcard${SPLIT_SECTIONS.includes(q.section) ? ' split' : ''}"><div class="q-left">
         <div class="qtag">${q.tag}${q.isNew ? '<span class="new">NEW</span>' : ''}</div>
         <div class="qprompt">${q.prompt}<div id="hintText"></div></div>
         ${q.audio ? `<div class="audio-row">
@@ -756,10 +759,14 @@
         ${q.kind === 'group' ? `<div class="script-box hidden" id="scriptBox">
             <div class="script-head"><b>📜 英文逐字稿</b><button class="btn-ghost" id="toggleZh">隱藏中文註解</button></div>
             ${q.transcript}</div>` : ''}
+        </div><div class="q-right">
         <div class="answers">${renderAnswers(q)}</div>
         <div class="feedback" id="feedback"></div>
-      </div>`;
+      </div></div>`;
 
+    // 分欄時題目句子放右邊、緊貼選項（文章 / 照片 / 圖表留在左邊）
+    const qt = document.querySelector('.qcard.split .qprompt > .qtext');
+    if (qt) document.querySelector('.q-right').prepend(qt);
     $('#quit').onclick = () => { stopTimer(); renderHome(); };
     if (q.audio) {
       $('#play').onclick = () => Speech.play(q.audio, q.audioFile);
@@ -1220,6 +1227,7 @@
       <button class="mode ${cls}" data-mode="${key}"><span class="ic">${ic}</span><span><div class="nm">${nm}</div><div class="sub">${sub}</div></span></button>`;
 
     app().innerHTML = `
+      <div class="home-top">
       <header class="hero">
         <div class="hero-top">
           <div class="avatar">${rk[1]}</div>
@@ -1246,6 +1254,7 @@
           ? `<div class="target">距離目標 750：${est.total >= 750 ? '已達標 🎉' : `還差 ${750 - est.total} 分`}<div class="bar"><div style="width:${Math.min(100, (est.total / 750) * 100)}%"></div></div></div>`
           : '<div class="hint">聽力、閱讀各答 10 題後顯示</div>'}
       </section>
+      </div>
 
       ${window.Cloud ? window.Cloud.homeCard() : ''}
       ${window.Exam ? window.Exam.homeCard() : ''}
