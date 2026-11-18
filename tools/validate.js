@@ -149,6 +149,40 @@ for (const name of Object.keys(W).filter((k) => /^MOCK\d+$/.test(k))) {
   summary.push(`${name}: ${total} 題（${parts.join(', ')}）`);
 }
 
+// 難度（data/diff/）：每題（Part 3/4/6/7 為每組）都要有 1/2/3；小模考照 30/40/30 抽題
+{
+  const D = W.DIFF || {};
+  const banks = [['', PRACTICE], ...Object.keys(W).filter((k) => /^MOCK\d+$/.test(k)).map((k) => [k + ':', W[k]])];
+  const expected = new Set();
+  for (const [pre, b] of banks) {
+    const missing = [], dist = [];
+    for (let p = 1; p <= 7; p++) {
+      const arr = b['part' + p] || [];
+      const c = { 1: 0, 2: 0, 3: 0 };
+      arr.forEach((_, i) => {
+        const key = `${pre}p${p}:${i}`;
+        expected.add(key);
+        if (D[key] == null) missing.push(key);
+        else if (![1, 2, 3].includes(D[key])) err(`DIFF.${key}`, '難度只能是 1、2、3');
+        else c[D[key]]++;
+      });
+      if (arr.length) dist.push(`P${p} ${c[1]}/${c[2]}/${c[3]}`);
+    }
+    const name = pre ? pre.slice(0, -1) : '練習題';
+    if (missing.length) warn.push(`${name} 還沒有難度標籤：${missing.length} 個（${missing.slice(0, 5).join(', ')}${missing.length > 5 ? '…' : ''}）`);
+    summary.push(`難度 ${name}（易/中/難）：${dist.join('・')}`);
+  }
+  Object.keys(D).filter((k) => !expected.has(k)).forEach((k) => err(`DIFF.${k}`, '找不到對應的題目'));
+}
+// 模擬考看圖題要放在 Part 3 / Part 4 的最後幾組（跟正式考試一樣）
+for (const name of Object.keys(W).filter((k) => /^MOCK\d+$/.test(k))) {
+  for (const k of ['part3', 'part4']) {
+    const g = (W[name][k] || []).map((s) => !!s.graphic);
+    const first = g.indexOf(true);
+    if (first >= 0 && g.slice(first).includes(false)) warn.push(`${name}.${k} 的看圖題沒有集中在最後面`);
+  }
+}
+
 // 逐字稿難字註解：key 要對得到題組，每個詞都要真的出現在逐字稿裡
 if (W.GLOSS) {
   let n = 0;

@@ -461,3 +461,58 @@ body.exam-wide #app { max-width: 1180px; }
 .flow { padding-left: 22px; margin: 0; }
 .flow li { margin: 4px 0; }
 .sc-tip { margin-top: 14px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--primary) 12%, var(--card)); font-weight: 600; }
+
+/* 模擬考選題本 */
+.mock-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+.mock-tab { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border-radius: 12px; background: var(--card); border: 2px solid var(--line); }
+.mock-tab small { font-size: 12px; color: var(--muted); }
+.mock-tab.on { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, var(--card)); }
+
+/* 登入 */
+.auth { max-width: 420px; margin: 8vh auto 0; text-align: center; }
+.auth-logo { font-size: 44px; }
+.auth h1 { margin: 6px 0 2px; }
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 14px 0 10px; }
+.auth-tabs button, .lb-tabs button { padding: 10px; border-radius: 12px; border: 2px solid var(--line); background: var(--card); font-weight: 700; }
+.auth-tabs button.on, .lb-tabs button.on { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, var(--card)); }
+.auth-form { text-align: left; display: grid; gap: 12px; }
+.auth-form label { display: grid; gap: 4px; font-size: 14px; font-weight: 600; }
+.auth-form input { padding: 12px; border-radius: 12px; border: 2px solid var(--line); background: var(--bg); color: var(--text); font-size: 16px; }
+.auth-form input:focus { outline: none; border-color: var(--primary); }
+.auth-form .btn-primary, .auth-form .btn-secondary { margin-top: 0; }
+.auth-msg { min-height: 1em; font-size: 14px; color: var(--ng); }
+.auth-msg.ok { color: var(--ok); }
+.auth .link { justify-self: center; }
+
+/* 排行榜 */
+.lb-tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-bottom: 12px; }
+.lb-tabs button { font-size: 12px; padding: 8px 2px; }
+.lb-row { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
+.lb-row:last-child { border-bottom: 0; }
+.lb-row.me { background: color-mix(in srgb, var(--primary) 8%, transparent); border-radius: 10px; }
+.lb-rank { width: 32px; text-align: center; font-weight: 800; font-size: 18px; }
+.lb-name { flex: 1; display: flex; flex-direction: column; }
+.lb-name small { color: var(--muted); font-size: 12px; font-weight: 400; }
+
+.lb-val { text-align: right; }
+.lb-val small { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
+
+/* 每日挑戰 */
+.daily-card { background: linear-gradient(135deg, color-mix(in srgb, var(--gold) 22%, var(--card)), var(--card)); border-color: color-mix(in srgb, var(--gold) 50%, var(--line)); }
+.daily-card.done { background: var(--card); }
+.dv-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.dv-nav .btn-ghost:disabled { opacity: .35; }
+.dv-mine { text-align: center; }
+.dv-mine h2 { margin: 4px 0; }
+.dv-grid-wrap { overflow-x: auto; margin-bottom: 16px; }
+.dv-grid { border-collapse: collapse; width: 100%; font-size: 13px; }
+.dv-grid th, .dv-grid td { padding: 6px 4px; text-align: center; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.dv-grid td:first-child { text-align: left; max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
+.dv-grid tr.me td { background: color-mix(in srgb, var(--primary) 8%, transparent); }
+.dv-grid .dv-rate td { color: var(--muted); font-size: 12px; border-bottom: 0; }
+.dq-prompt { margin: 8px 0; }
+.dq-prompt .photo { max-width: 100%; border-radius: 12px; }
+.dq-picks { list-style: none; padding: 0; display: grid; gap: 8px; }
+.dq-picks li { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); }
+.dq-picks li.ans { border-color: var(--ok); background: var(--ok-bg); }
+.dq-picks small { color: var(--muted); }

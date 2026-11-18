@@ -1,0 +1,23 @@
+window.GLOSS = window.GLOSS || {};
+Object.assign(window.GLOSS, {
+  "p3:30": [["catering", "外燴"], ["retirement party", "退休歡送會"], ["directors", "董事；處長"], ["buffet", "自助餐"], ["packages", "套餐方案"], ["contract", "合約"], ["deposit", "訂金"], ["hold the date", "保留日期"]],
+  "p3:31": [["candidates", "應徵者；候選人"], ["graphic designer", "平面設計師"], ["portfolio", "作品集"], ["job posting", "徵才公告"], ["freelance", "自由接案的"], ["runs through", "持續到"], ["make her an offer", "向她提出錄用"], ["salary", "薪資"]],
+  "p3:32": [["vinyl banners", "塑膠布條；帆布旗幟"], ["trade fair", "商展"], ["tracking page", "物流追蹤頁面"], ["processed", "處理"], ["low resolution", "低解析度"], ["on hold", "暫停處理"], ["spam folder", "垃圾郵件匣"], ["overnight delivery", "隔夜快遞"]],
+  "p3:33": [["floor tiles", "地磚"], ["tile saw", "磁磚切割機"], ["rate sheet", "價目表"], ["security deposit", "押金"], ["cleaning fee", "清潔費"], ["blade", "鋸片；刀片"], ["separately", "另外；分開地"]],
+  "p3:34": [["shut down", "停止運轉"], ["annual", "年度的"], ["safety inspection", "安全檢查"], ["freight elevator", "貨梯"], ["designed for", "專為……設計"], ["reserve", "預約"], ["sign-up sheet", "登記表"], ["back entrance", "後門入口"]],
+  "p3:35": [["cleaning", "洗牙"], ["client meeting", "客戶會議"], ["opening", "空檔；空缺"], ["lunch break", "午休"], ["across town", "在城市另一頭"], ["insurance", "保險"]],
+  "p3:36": [["sales conference", "業務會議"], ["welcome reception", "歡迎酒會"], ["pull up", "調出（資料）"], ["direct flights", "直飛班機"], ["preference", "偏好"], ["economy", "經濟艙"], ["fully booked", "全部訂滿"], ["arrange", "安排"]],
+  "p3:37": [["finance", "財務部"], ["budget", "預算"], ["cut", "刪減"], ["spending", "支出"], ["licenses", "授權"], ["renew", "續約；更新"], ["hardly", "幾乎不"], ["expense", "開支"], ["report back", "回報"]],
+  "p3:38": [["launch", "上市；發表"], ["wireless earbuds", "無線耳機"], ["on schedule", "按照進度"], ["charging cases", "充電盒"], ["defect", "瑕疵"], ["hinge", "鉸鏈；轉軸"], ["inconvenient", "不方便的"], ["preorders", "預購"]],
+  "p3:39": [["wellness program", "健康促進計畫"], ["membership", "會員資格"], ["been meaning to", "一直想要"], ["location", "據點；分店"], ["convenient", "方便的"], ["shift", "班；輪班"], ["intranet", "內部網路"], ["front desk", "櫃台"]],
+  "p3:40": [["arrange", "安排"], ["guided tour", "導覽"], ["split in two", "分成兩組"], ["apart", "相隔"], ["make a note of", "記下"], ["rooftop", "屋頂的"], ["set menus", "套餐"], ["budget", "預算"]],
+  "p3:41": [["plenty of", "很多"], ["foot traffic", "人潮；來客量"], ["tenant", "房客；承租人"], ["commercial ovens", "商用烤箱"], ["pastries", "糕點"], ["electrical wiring", "電線配線"], ["lease", "租約"], ["contractor", "承包商；施工師傅"]],
+  "p3:42": [["user manual", "使用手冊"], ["translated", "翻譯"], ["versions", "版本"], ["shipping", "出貨"], ["booked", "已排滿"], ["speed that up", "加快速度"], ["rush fee", "加急費"], ["available", "有空的"]],
+  "p3:43": [["legal department", "法務部"], ["parking permit", "停車證"], ["rearview mirror", "後照鏡"], ["parking garage", "停車場（室內）"], ["level", "樓層"], ["electric car", "電動車"], ["charging spaces", "充電車位"], ["security desk", "保全櫃台"]],
+  "p3:44": [["compostable", "可堆肥的"], ["switched to", "改用"], ["environmentally friendly", "環保的"], ["compare with", "與……相比"], ["go through", "用掉"], ["qualify for", "符合……的資格"], ["bulk pricing", "大量採購價"], ["hold up", "耐用；撐得住"]],
+  "p3:45": [["remind", "提醒"], ["safety training", "安全訓練"], ["completed", "完成"], ["module", "單元"], ["vendor", "廠商"], ["in the meantime", "在此同時"], ["safety officer", "安全主管"], ["in person", "親自；當面"]],
+  "p3:46": [["booth", "攤位"], ["beeswax candles", "蜂蠟蠟燭"], ["main stage", "主舞台"], ["vendors", "攤商"], ["passes by", "經過"], ["tastings", "試吃"], ["permit", "許可證"], ["health office", "衛生局"], ["application", "申請表"]],
+  "p3:47": [["feature", "專題報導"], ["harbor district", "港區"], ["head chef", "主廚"], ["seafood", "海鮮"], ["depending on", "視……而定"], ["fishermen", "漁夫"], ["unique approach", "獨特的做法"], ["photographer", "攝影師"]],
+  "p3:48": [["delivered", "送達"], ["order number", "訂單編號"], ["unwrapped", "拆開包裝"], ["out of stock", "缺貨"], ["full refund", "全額退款"], ["in-laws", "姻親；公婆或岳父母"], ["at no charge", "免費"]],
+  "p3:49": [["survey", "問卷調查"], ["team-building", "團隊建立"], ["unfortunately", "可惜的是"], ["groups of up to", "最多……人的團體"], ["per person", "每人"], ["fits our budget", "符合預算"], ["reservation", "預約"], ["arrange", "安排"]],
+});

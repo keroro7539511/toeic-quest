@@ -28,16 +28,53 @@
     listening: { icon: '🎧', name: '聽力小模考', desc: 'Part 1→4 依考試順序混合' },
     reading: { icon: '📖', name: '閱讀小模考', desc: 'Part 5→7 依考試順序混合' },
   };
+  // 難度（data/diff/）：1 簡單、2 中等、3 困難；沒標的當中等
+  const level = (k, i) => (window.DIFF || {})[`p${k.slice(4)}:${i}`] || 2;
+  const MIX = { 1: 0.3, 2: 0.4, 3: 0.3 };   // 跟模擬考出題目標相同：簡單 30%、中等 40%、困難 30%
+  // n 題要幾題簡單/中等/困難：先取整數部分，剩下的名額依小數部分的比重隨機分配（長期平均就是 30/40/30）
+  function quota(n) {
+    const q = {}, frac = {};
+    let left = n;
+    for (const d of [1, 2, 3]) { q[d] = Math.floor(n * MIX[d]); frac[d] = n * MIX[d] - q[d]; left -= q[d]; }
+    while (left-- > 0) {
+      const ds = [1, 2, 3].filter((d) => frac[d] > 0);
+      let r = Math.random() * ds.reduce((a, d) => a + frac[d], 0);
+      const d = ds.find((x) => (r -= frac[x]) < 0) || ds[ds.length - 1];
+      q[d]++; frac[d] = 0;
+    }
+    return q;
+  }
   function pickMini(mode) {
     const used = {};
     T.S.exams.forEach((e) => e.spec && Object.entries(e.spec).forEach(([k, arr]) => arr.forEach((i) => { used[k + i] = (used[k + i] || 0) + 1; })));
-    // 先打亂再依「小模考出現過的次數」排序：沒考過的優先，同次數之間隨機
-    const take = (k, n, ok = () => true) => shuffle(bank(k).map((_, i) => i).filter((i) => ok(bank(k)[i])))
-      .sort((a, b) => (used[k + a] || 0) - (used[k + b] || 0)).slice(0, n);
-    if (mode === 'listening') return { part1: take('part1', 3), part2: take('part2', 8), part3: take('part3', 3), part4: take('part4', 2) };
+    // 先打亂再依「小模考出現過的次數」排序：沒考過的優先，同次數之間隨機；
+    // 再依難度配額挑題，某個難度的題目不夠時用其他題目補
+    const take = (k, n, ok = () => true) => {
+      const pool = shuffle(bank(k).map((_, i) => i).filter((i) => ok(bank(k)[i])))
+        .sort((a, b) => (used[k + a] || 0) - (used[k + b] || 0));
+      const q = quota(n), out = [];
+      for (const d of [1, 2, 3]) out.push(...pool.filter((i) => level(k, i) === d).slice(0, q[d]));
+      for (const i of pool) if (out.length < n && !out.includes(i)) out.push(i);
+      return out;
+    };
+    const at = (k) => (i) => bank(k)[i];
+    const byLevel = (k) => (a, b) => level(k, a) - level(k, b);
+    const graphicLast = (k) => (a, b) => !!at(k)(a).graphic - !!at(k)(b).graphic;
+    if (mode === 'listening') {
+      return {
+        // 正式考試 Part 1 前面的題目通常較直接，後面才出現場景、物品的陷阱題 → 由易到難
+        part1: take('part1', 3).sort(byLevel('part1')),
+        part2: take('part2', 8),
+        // 看圖題固定排在 Part 3、Part 4 的最後面（跟正式考試一樣）
+        part3: [...take('part3', 2, (s) => !s.graphic), ...take('part3', 1, (s) => !!s.graphic)],
+        part4: take('part4', 2).sort(graphicLast('part4')),
+      };
+    }
     return {
       part5: take('part5', 10), part6: take('part6', 1),
-      part7: [...take('part7', 2, (s) => s.passages.length === 1), ...take('part7', 1, (s) => s.passages.length > 1)],
+      // 單篇照題數由少到多，再接多篇（正式考試的順序）
+      part7: [...take('part7', 2, (s) => s.passages.length === 1).sort((a, b) => at('part7')(a).qs.length - at('part7')(b).qs.length),
+        ...take('part7', 1, (s) => s.passages.length > 1)],
     };
   }
   const miniReady = (spec) => Object.entries(spec || {}).every(([k, arr]) => arr.every((i) => bank(k)[i]));
@@ -160,13 +197,22 @@
 
   // ───────────── 首頁卡片 / 大廳 ─────────────
   const lastOf = (f) => T.S.exams.filter(f).pop();
-  const modeLabel = (h) => `${{ full: '完整', listening: '聽力', reading: '閱讀' }[h.mode]}${h.testId === MINI ? '小模考' : ''}`;
+  const mockNo = (id) => +id.slice(4);
+  const modeLabel = (h) => `${h.testId !== MINI && MOCK_IDS.length > 1 ? `第${mockNo(h.testId)}回 ` : ''}${{ full: '完整', listening: '聽力', reading: '閱讀' }[h.mode]}${h.testId === MINI ? '小模考' : ''}`;
+  const scoreText = (h) => (h.total != null ? `總分 ${h.total}` : h.mode === 'listening' ? `聽力 ${h.L}` : `閱讀 ${h.R}`);
+  // 建議考哪一回：還沒考過的優先（照回數），都考過就挑最久沒考的那回
+  function suggestMock() {
+    const tests = MOCK_IDS.filter(ready);
+    const lastIdx = (id) => T.S.exams.map((e) => e.testId).lastIndexOf(id);
+    return tests.find((id) => lastIdx(id) < 0) || tests.slice().sort((a, b) => lastIdx(a) - lastIdx(b))[0];
+  }
+  let pick = null;   // 大廳目前選的題本
   function homeCard() {
-    const mock = MOCK_IDS.find(ready);
+    const mock = suggestMock();
     load();
     const last = lastOf((e) => e.testId !== MINI);
     const sub = E && E.testId !== MINI ? '⏸ 作答中，點這裡繼續'
-      : last ? `上次：${last.total != null ? `總分 ${last.total}` : last.mode === 'listening' ? `聽力 ${last.L}` : `閱讀 ${last.R}`}・再挑戰一次`
+      : last ? `上次：${scoreText(last)}${MOCK_IDS.filter(ready).length > 1 ? `・下一回：第 ${mockNo(mock)} 回` : '・再挑戰一次'}`
       : '完整 200 題・約 2 小時・測出目前程度';
     const card = (id, ic, nm, s) => `<button class="mode" id="${id}"><span class="ic">${ic}</span><span><div class="nm">${nm}</div><div class="sub">${s}</div></span></button>`;
     const miniSub = (mode) => {
@@ -180,15 +226,15 @@
       <section class="modes">
         ${card('miniL', '🎧', '聽力小模考', miniSub('listening'))}
         ${card('miniR', '📖', '閱讀小模考', miniSub('reading'))}
-        ${mock ? `${card('fullL', '🎧', '聽力完整模擬', '100 題・約 45 分・只播一次')}
-        ${card('fullR', '📖', '閱讀完整模擬', '100 題・75 分鐘計時')}` : ''}
+        ${mock ? `${card('fullL', '🎧', '聽力完整模擬', `第 ${mockNo(mock)} 回・100 題・約 45 分`)}
+        ${card('fullR', '📖', '閱讀完整模擬', `第 ${mockNo(mock)} 回・100 題・75 分鐘`)}` : ''}
       </section>`;
   }
   function bindHome() {
     onScreen = false;
     leave();
     const on = (id, fn) => { const b = $('#' + id); if (b) b.onclick = fn; };
-    const mock = MOCK_IDS.find(ready);
+    const mock = suggestMock();
     on('examCard', lobby);
     on('miniL', () => startDialog(MINI, 'listening'));
     on('miniR', () => startDialog(MINI, 'reading'));
@@ -224,11 +270,11 @@
       }).join('');
       info = { spec, title: `${MINI_INFO[mode].icon} ${MINI_INFO[mode].name}`, body: `<p>共 <b>${n} 題</b>，從練習題庫抽題，${MINI_INFO[mode].desc}。</p><ul class="rules">${parts}</ul>` };
     } else {
-      info = { title: `${L ? '🎧 聽力' : '📖 閱讀'}完整模擬`, body: `<p>正式考試的${L ? '聽力 Part 1–4' : '閱讀 Part 5–7'}，共 <b>100 題</b>。</p><p class="hint" style="text-align:left">⚠️ 同一回題本重考會因為記得題目而分數偏高。</p>` };
+      info = { title: `${L ? '🎧 聽力' : '📖 閱讀'}完整模擬・第 ${mockNo(testId)} 回`, body: `<p>正式考試的${L ? '聽力 Part 1–4' : '閱讀 Part 5–7'}，共 <b>100 題</b>。</p><p class="hint" style="text-align:left">⚠️ 同一回題本重考會因為記得題目而分數偏高。</p>` };
     }
     T.showModal(`<h2>${info.title}</h2>${info.body}
       <ul class="rules">${L
-        ? '<li>🎧 <b>自動播放、每段只播一次</b>，不能暫停或重播；語速固定 1.0×。</li><li>Part 3/4 每段開播前有 ${PREVIEW_SEC} 秒預讀題目，聽完會唸出題目，每題約 8 秒作答時間。</li><li>💡 建議戴耳機。</li>'
+        ? `<li>🎧 <b>自動播放、每段只播一次</b>，不能暫停或重播；語速固定 1.0×。</li><li>Part 3/4 每段開播前有 ${PREVIEW_SEC} 秒預讀題目，聽完會唸出題目，每題約 8 秒作答時間。</li><li>💡 建議戴耳機。</li>`
         : '<li>📖 按下開始後計時（照正式考試比例），<b>不會暫停</b>，時間到自動交卷。</li><li>可以自由跳題、標記 🚩。</li>'}
         <li>📊 交卷後才看分數、各 Part 正確率和逐題詳解。</li></ul>
       <button class="btn-primary" id="exGo">開始</button>
@@ -241,8 +287,13 @@
     onScreen = true;
     T.stopSession();
     const S = T.S;
-    const tests = MOCK_IDS.map((id) => ({ id, ok: ready(id) }));
-    const current = tests.find((t) => t.ok);
+    const tests = MOCK_IDS.filter(ready);
+    if (!tests.includes(pick)) pick = suggestMock();
+    const current = pick;
+    const picker = tests.length > 1 ? `<h3>選擇題本</h3><div class="mock-pick">${tests.map((id) => {
+      const h = lastOf((e) => e.testId === id);
+      return `<button class="mock-tab${id === pick ? ' on' : ''}" data-pick="${id}"><b>第 ${mockNo(id)} 回</b><small>${h ? `上次 ${scoreText(h)}` : '還沒考過'}</small></button>`;
+    }).join('')}</div>` : '';
     const hist = S.exams.slice().reverse();
     app().innerHTML = `
       <div class="sbar"><button class="icon-btn" id="exHome">✕</button><div class="grow"><b>📝 多益模擬考</b></div></div>
@@ -269,7 +320,7 @@
           <li>💡 建議戴耳機、預留完整 2 小時一次考完，成績最準。</li>
           <li>📊 分數依常見換算表估算，僅供參考；同一回重考會因為記得題目而偏高。</li>
         </ul>
-        ${current ? `
+        ${current ? `${picker}
           <button class="btn-primary" data-start="full">開始完整模擬考（200 題・約 2 小時）</button>
           <div class="two-btn">
             <button class="btn-secondary" data-start="listening">只考聽力（100 題・約 45 分）</button>
@@ -284,7 +335,8 @@
         </tbody></table></div>` : ''}`;
 
     $('#exHome').onclick = () => T.renderHome();
-    document.querySelectorAll('[data-start]').forEach((b) => { b.onclick = () => start(current.id, b.dataset.start); });
+    document.querySelectorAll('[data-start]').forEach((b) => { b.onclick = () => start(current, b.dataset.start); });
+    document.querySelectorAll('[data-pick]').forEach((b) => { b.onclick = () => { pick = b.dataset.pick; lobby(); }; });
     document.querySelectorAll('[data-report]').forEach((b) => { b.onclick = () => report(T.S.exams[+b.dataset.report], false); });
     if (E) {
       $('#exResume').onclick = resume;
@@ -614,7 +666,7 @@
     const weak = Object.keys(entry.parts).map((p) => [p, entry.parts[p].c / entry.parts[p].t]).sort((a, b) => a[1] - b[1]).slice(0, 2);
     const target = 750;
     app().innerHTML = `
-      <div class="sbar"><button class="icon-btn" id="exHome">✕</button><div class="grow"><b>📊 ${mini ? MINI_INFO[entry.mode].name : '模擬考'}成績</b> <small>${esc(entry.date)}</small></div></div>
+      <div class="sbar"><button class="icon-btn" id="exHome">✕</button><div class="grow"><b>📊 ${mini ? MINI_INFO[entry.mode].name : `模擬考${MOCK_IDS.length > 1 ? ` 第 ${mockNo(entry.testId)} 回` : ''}`}成績</b> <small>${esc(entry.date)}</small></div></div>
       <div class="card report">
         ${fresh ? `<div class="big-emoji">${total != null ? (total >= 750 ? '🏆' : total >= 600 ? '🎉' : '💪') : '📋'}</div>` : ''}
         ${total != null ? `<div class="rtotal"><span>估計總分</span><b>${total}</b><small>約 ${Math.max(10, total - 40)}–${Math.min(990, total + 40)}</small></div>` : ''}

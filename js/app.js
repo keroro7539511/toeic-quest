@@ -57,7 +57,17 @@
     try { const raw = JSON.parse(localStorage.getItem(STORE_KEY)); if (raw) return merge(defaultState(), raw); } catch (e) { /* 壞檔就重來 */ }
     return defaultState();
   }
-  function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* 無痕模式等 */ } }
+  // 本週（週一開始）的 XP：每次存檔時把 XP 的增加量記到這週，排行榜用
+  const weekId = (d = new Date()) => { const x = new Date(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return dateStr(x); };
+  function save() {
+    const wk = weekId();
+    if (!S.week || S.week.id !== wk) S.week = { id: wk, xp: 0 };
+    if (S.xpSeen != null && S.xp > S.xpSeen) S.week.xp += S.xp - S.xpSeen;
+    S.xpSeen = S.xp;
+    S.savedAt = Date.now();
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* 無痕模式等 */ }
+    if (window.Cloud) window.Cloud.onSave();
+  }
   const RATES = [0.5, 0.75, 1, 1.25];
   let S = load();
   if (!RATES.includes(S.settings.rate)) {
@@ -870,6 +880,8 @@
     }
 
     const gained = record(q, correct);
+    const last = s.results[s.results.length - 1];
+    if (last) last.chosen = q.kind === 'choice' && choice >= 0 ? q.options[choice] : null;
     Sfx.play(correct ? 'ok' : 'ng');
     if (s.boss) bossEffect(correct);
     if (s.mode === 'monster' && correct && !S.mistakes[q.id]) {
@@ -1103,6 +1115,7 @@
     if (total >= 10 && s.correct === total) { S.perfectRounds++; confetti(); }
     checkBadges();
     save();
+    if (s.onFinish) return s.onFinish(s);
 
     const wrong = s.results.filter((r) => !r.correct);
     app().innerHTML = `
@@ -1212,6 +1225,7 @@
           <div class="avatar">${rk[1]}</div>
           <div class="who"><div class="rank">${rk[2]}</div><div class="lv">Lv.${li.level}・總計 ${S.xp} XP</div></div>
           <div class="streak ${streak ? 'on' : ''}" title="連續達成每日目標天數">🔥 ${streak}</div>
+          ${window.Cloud ? window.Cloud.heroButtons() : ''}
           <button class="icon-btn" id="btnSettings" title="設定">⚙️</button>
         </div>
         <div class="xpbar"><div style="width:${li.pct * 100}%"></div><span>${li.cur} / ${li.need} XP 到 Lv.${li.level + 1}</span></div>
@@ -1233,6 +1247,7 @@
           : '<div class="hint">聽力、閱讀各答 10 題後顯示</div>'}
       </section>
 
+      ${window.Cloud ? window.Cloud.homeCard() : ''}
       ${window.Exam ? window.Exam.homeCard() : ''}
 
       <h2 class="sec-title">🎧 聽力練習</h2>
@@ -1422,9 +1437,13 @@
     get S() { return S; }, save, Speech, Sfx, esc, toast, confetti, showModal, closeModal, renderHome,
     renderGraphic, renderPassage, ROLE_ICON, LETTERS, transcriptHtml, multiline, checkBadges, levelInfo, showLevelUp, today,
     stopSession() { session = null; stopTimer(); },
+    // 給 js/cloud.js（登入、雲端進度、排行榜）使用
+    defaultState, weekId, currentStreak, totalCorrect, questionFromId, startSession,
+    replaceState(data) { S = merge(defaultState(), data || {}); save(); },
   };
 
   Speech.init();
   // 等 exam.js 載入後再畫首頁
-  document.addEventListener('DOMContentLoaded', renderHome);
+  // 有設定雲端（js/cloud-config.js）時先登入；沒設定或載入失敗就照舊用本機進度
+  document.addEventListener('DOMContentLoaded', () => (window.Cloud ? window.Cloud.boot() : renderHome()));
 })();
