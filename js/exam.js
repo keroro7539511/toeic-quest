@@ -402,6 +402,23 @@
       <button class="eopt ${E.ans[num] === k ? 'on' : ''}" data-num="${num}" data-k="${k}">
         <span class="bub">${L4[pos]}</span>${showText ? `<span>${T.multiline(opts[k])}</span>` : ''}</button>`).join('')}</div>`;
   }
+  function wireGroup() {
+    const box = document.querySelector('.exgroup .exqs');
+    if (!box) return;
+    const cards = [...box.querySelectorAll('.exq')], tabs = [...document.querySelectorAll('.exgroup .gtabs [data-tab]')];
+    const go = (j) => box.scrollTo({ left: cards[j].offsetLeft - box.offsetLeft, behavior: 'smooth' });
+    tabs.forEach((t) => { t.onclick = () => go(+t.dataset.tab); });
+    box.addEventListener('scroll', () => {
+      const j = Math.round(box.scrollLeft / Math.max(1, box.clientWidth));
+      tabs.forEach((t) => t.classList.toggle('on', +t.dataset.tab === j));
+    }, { passive: true });
+    cards.forEach((c, j) => c.querySelectorAll('.eopt').forEach((b) => b.addEventListener('click', () => {
+      tabs[j].classList.add('picked');
+      if (getComputedStyle(box).overflowX !== 'auto') return;   // 電腦版三題並排，不用跳
+      const next = cards.findIndex((c2, k) => k > j && !c2.querySelector('.eopt.on'));
+      if (next > 0) setTimeout(() => go(next), 250);
+    })));
+  }
   function bindOptions() {
     document.querySelectorAll('.eopt').forEach((b) => {
       b.onclick = () => {
@@ -433,8 +450,11 @@
     } else if (u.part === 2) {
       body = `<div class="card"><div class="qnum">${u.nums[0]}.</div><p class="hint" style="text-align:left">Mark your answer on your answer sheet.</p>${optionsHtml(u.nums[0], u.x.o, false)}</div>`;
     } else {
-      body = `<div class="card">${T.renderGraphic(u.x.graphic)}${u.x.qs.map((q, k) => `
-        <div class="exq"><div class="qline"><b>${u.nums[k]}.</b> ${T.multiline(q.q)}</div>${optionsHtml(u.nums[k], q.o, true)}</div>`).join('')}</div>`;
+      // 電腦：三題並排；手機：三題的題目一直列在上面，下面一次一題的選項（左右滑、選完自動下一題）
+      body = `<div class="card exgroup">${T.renderGraphic(u.x.graphic)}
+        <div class="gtabs">${u.x.qs.map((q, k) => `<button data-tab="${k}" class="${k ? '' : 'on'}${E.ans[u.nums[k]] != null ? ' picked' : ''}"><span class="gt-n">${u.nums[k]}</span><span class="gt-q">${esc(q.q)}</span></button>`).join('')}</div>
+        <div class="exqs">${u.x.qs.map((q, k) => `
+        <div class="exq"><div class="qline"><b>${u.nums[k]}.</b> ${T.multiline(q.q)}</div>${optionsHtml(u.nums[k], q.o, true)}</div>`).join('')}</div></div>`;
     }
     app().innerHTML = `
       <div class="exam-bar">
@@ -448,6 +468,7 @@
     $('#exQuit').onclick = quitDialog;
     if (u.dir) $('#exSkip').onclick = nextUnit;
     bindOptions();
+    wireGroup();
     playUnit();
   }
 

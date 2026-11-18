@@ -633,3 +633,20 @@ body:has(.auth) .topbar { display: none; }
   .qcard.group .preview-bar .btn-secondary { padding: 8px; margin-top: 6px; }
 }
 @media (min-width: 900px) { .qcard.group #submitGroup { margin-top: 14px; } }
+
+/* 模擬考 / 小模考聽力 Part 3/4：電腦三題並排；手機題目清單＋一次一題的選項 */
+.exgroup .graphic { margin-bottom: 12px; }
+@media (min-width: 900px) {
+  #app:has(.exgroup) { max-width: 1180px; }
+  .exgroup .exqs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+  .exgroup .exq { border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+  .exgroup .exq:last-child { border-bottom: 1px solid var(--line); }
+  .exgroup .graphic { max-width: 560px; margin-left: auto; margin-right: auto; }
+}
+@media (max-width: 899px) {
+  .exgroup .exqs { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 14px; scrollbar-width: none; overscroll-behavior-x: contain; }
+  .exgroup .exqs::-webkit-scrollbar { display: none; }
+  .exgroup .exq { flex: 0 0 100%; scroll-snap-align: start; border-bottom: 0; padding: 0; }
+  .exgroup .exq .qline { display: none; }
+  .exgroup .graphic { font-size: 13px; padding: 8px 10px; }
+}
