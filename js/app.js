@@ -1233,9 +1233,10 @@
         <div class="hero-top">
           <div class="avatar">${rk[1]}</div>
           <div class="who"><div class="rank">${rk[2]}</div><div class="lv">Lv.${li.level}・總計 ${S.xp} XP</div></div>
-          <div class="streak ${streak ? 'on' : ''}" title="連續達成每日目標天數">🔥 ${streak}</div>
-          ${window.Cloud ? window.Cloud.heroButtons() : ''}
-          <button class="icon-btn" id="btnSettings" title="設定">⚙️</button>
+          <div class="hero-actions">
+            <div class="streak ${streak ? 'on' : ''}" title="連續達成每日目標天數">🔥 ${streak}</div>
+            <span class="hero-btns">${window.Cloud ? window.Cloud.heroButtons() : ''}<button class="icon-btn" id="btnSettings" title="設定">⚙️</button></span>
+          </div>
         </div>
         <div class="xpbar"><div style="width:${li.pct * 100}%"></div><span>${li.cur} / ${li.need} XP 到 Lv.${li.level + 1}</span></div>
         <div class="goal">

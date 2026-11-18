@@ -63,13 +63,22 @@ small { color: var(--muted); font-weight: normal; }
   background: linear-gradient(135deg, var(--primary), var(--primary-2));
   color: #fff; border-radius: 22px; padding: 18px; margin-bottom: 14px; box-shadow: var(--shadow);
 }
+.hero { container-type: inline-size; }
 .hero-top { display: flex; align-items: center; gap: 12px; }
 .hero .icon-btn:hover { background: rgba(255,255,255,.15); }
 .avatar {
   font-size: 34px; width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center;
   background: rgba(255,255,255,.2);
 }
-.who { flex: 1; }
+.who { flex: 1; min-width: 0; }
+.who .rank, .who .lv { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hero-actions { display: flex; align-items: center; gap: 6px; }
+.hero-btns { display: flex; align-items: center; }
+/* 等級卡太窄（電腦版側欄、手機）：工具列移到最上面一列，連續天數靠左、按鈕靠右 */
+@container (max-width: 480px) {
+  .hero-top { flex-wrap: wrap; row-gap: 10px; }
+  .hero-actions { order: -1; width: 100%; justify-content: space-between; }
+}
 .rank { font-weight: 800; font-size: 18px; }
 .lv { opacity: .85; font-size: 14px; }
 .streak { background: rgba(0,0,0,.18); padding: 6px 12px; border-radius: 999px; font-weight: 700; opacity: .6; }
@@ -538,17 +547,17 @@ body.exam-wide #app { max-width: 1180px; }
 /* 電腦版首頁：左側欄（等級、分數、每日挑戰、模擬考）＋右側橫向小卡，一個畫面看完 */
 @media (min-width: 1000px) {
   #app:has(.home) { max-width: 1280px; }
-  .home { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 28px; align-items: start; }
+  .home { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 32px; align-items: start; }
   .home-side { position: sticky; top: 16px; }
   .home-side .home-top { display: block; margin-bottom: 0; }
   .home-side .home-top > * { margin-bottom: 14px; }
   .home-side .modes { grid-template-columns: 1fr; margin-bottom: 14px; }
   .home-side .mode.wide { grid-column: auto; padding: 16px; }
   .home-main > .sec-title:first-child { margin-top: 0; }
-  .home-main .modes { grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  .home-main .mode, .home-main .mode.wide { grid-column: auto; flex-direction: row; align-items: center; gap: 12px; padding: 12px 14px; min-height: 68px; }
+  .home-main .modes { grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+  .home-main .mode, .home-main .mode.wide { grid-column: auto; flex-direction: row; align-items: center; gap: 12px; padding: 12px 14px; min-height: 72px; }
   .home-main .mode .ic { font-size: 26px; width: 34px; text-align: center; flex: none; }
   .home-main .mode:hover { transform: translateY(-1px); }
   .home-main .card { margin-bottom: 10px; }
 }
-@media (min-width: 1280px) { .home-main .modes { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 1600px) { .home-main .modes { grid-template-columns: repeat(4, 1fr); } }
