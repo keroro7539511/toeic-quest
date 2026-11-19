@@ -418,5 +418,5 @@
     });
   }
 
-  window.Cloud = { boot, heroButtons, homeCard, onSave, push, loggedIn: () => !!user };
+  window.Cloud = { boot, heroButtons, homeCard, onSave, push, loggedIn: () => !!user, dailyDone: () => !!(todayResult && todayResult.finished) };
 })();

@@ -21,7 +21,8 @@
     office: '🏢 辦公室', meeting: '🤝 會議', travel: '✈️ 出差旅遊', hr: '👔 人事',
     finance: '💰 財務', marketing: '📣 行銷業務', production: '🏭 製造採購', general: '⭐ 常考詞',
   };
-  const WORDS = window.VOCAB.map(([w, pos, zh, ex, cat]) => ({ id: 'v:' + w, w, pos, zh, ex, cat }));
+  const WORDS = window.VOCAB.map(([w, pos, zh, ex, cat, tier]) => ({ id: 'v:' + w, w, pos, zh, ex, cat, tier: tier || 2 }));
+  const WORD_BY_LOWER = Object.fromEntries(WORDS.map((w) => [w.w.toLowerCase(), w]));
   const WORD_BY_ID = Object.fromEntries(WORDS.map((x) => [x.id, x]));
   const P5 = window.PART5.map((x, i) => ({ ...x, id: 'p5:' + i }));
   const P2 = window.PART2.map((x, i) => ({ ...x, id: 'p2:' + i }));
@@ -46,7 +47,11 @@
     recent: { listening: [], reading: [] },
     srs: {}, seen: {}, mistakes: {}, badges: {},
     monstersDefeated: 0, bossesDefeated: 0, dictPerfect: 0, perfectRounds: 0, exams: [],
-    settings: { rate: 1, accent: 'mixed', dailyGoal: 30, sound: true, aiVoice: true, preview: 15 },
+    history: {},      // 每天的練習紀錄 { '2026-11-19': { n, c, xp, sec: { part5: {c,t} }, skill: {...} } }
+    skill: {},        // 各 Part 實力分數（Elo，題目難度 簡單 1200／中等 1400／困難 1600）
+    tasks: { date: null, done: {} },   // 今日任務完成狀態
+    collected: {},    // 從題目收進單字本的字
+    settings: { rate: 1, accent: 'mixed', dailyGoal: 30, sound: true, aiVoice: true, preview: 15, adaptive: true },
   });
   const isObj = (x) => x && typeof x === 'object' && !Array.isArray(x);
   function merge(base, over) {
@@ -59,10 +64,16 @@
   }
   // 本週（週一開始）的 XP：每次存檔時把 XP 的增加量記到這週，排行榜用
   const weekId = (d = new Date()) => { const x = new Date(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return dateStr(x); };
+  function dayLog() {
+    const t = today();
+    if (!S.history[t]) S.history[t] = { n: 0, c: 0, xp: 0, sec: {} };
+    return S.history[t];
+  }
   function save() {
     const wk = weekId();
     if (!S.week || S.week.id !== wk) S.week = { id: wk, xp: 0 };
-    if (S.xpSeen != null && S.xp > S.xpSeen) S.week.xp += S.xp - S.xpSeen;
+    if (S.xpSeen != null && S.xp > S.xpSeen) { S.week.xp += S.xp - S.xpSeen; dayLog().xp += S.xp - S.xpSeen; }
+    if (Object.keys(S.skill).length) dayLog().skill = { ...S.skill };
     S.xpSeen = S.xp;
     S.savedAt = Date.now();
     try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* 無痕模式等 */ }
@@ -101,6 +112,48 @@
   }
 
   // ───────────────────────── 成就 ─────────────────────────
+  // ── 各 Part 實力分數：答對率約 50% 的題目難度就是你的實力；答對越難的題目進步越多 ──
+  const LEVEL_RATING = { 1: 1200, 2: 1400, 3: 1600 };
+  const PARTS7 = ['part1', 'part2', 'part3', 'part4', 'part5', 'part6', 'part7'];
+  const itemLevel = (id) => (window.DIFF || {})[String(id).split('.')[0]] || 2;
+  const pCorrect = (skill, level) => 1 / (1 + 10 ** ((LEVEL_RATING[level] - skill) / 400));
+  function skillOf(sec) {
+    if (S.skill[sec] == null) {
+      const st = S.stats[sec] || { c: 0, t: 0 };
+      // 第一次：用過去的答對率估（平均題目難度約中等）
+      const acc = st.t >= 10 ? Math.min(0.92, Math.max(0.15, st.c / st.t)) : 0.5;
+      S.skill[sec] = Math.round(1350 + 400 * Math.log10(acc / (1 - acc)));
+    }
+    return S.skill[sec];
+  }
+  function updateSkill(q, correct) {
+    if (!PARTS7.includes(q.section)) return;
+    const k = skillOf(q.section), p = pCorrect(k, itemLevel(q.id));
+    S.skill[q.section] = Math.round(Math.max(900, Math.min(1900, k + 28 * ((correct ? 1 : 0) - p))));
+  }
+  const skillLabel = (k) => (k < 1250 ? '起步' : k < 1350 ? '基礎' : k < 1450 ? '穩定' : k < 1550 ? '進階' : '高手');
+  // 自動調整：挑「預估答對率接近 80%」的難度，混一點其他難度
+  function levelWeights(sec) {
+    const k = skillOf(sec), w = {};
+    let sum = 0;
+    for (const d of [1, 2, 3]) { w[d] = Math.exp(-(((pCorrect(k, d) - 0.8) / 0.13) ** 2)) + 0.06; sum += w[d]; }
+    for (const d of [1, 2, 3]) w[d] /= sum;
+    return w;
+  }
+  function pickAdaptive(list, n, sec, exclude = new Set()) {
+    const w = levelWeights(sec), out = [];
+    const pool = list.filter((x) => !exclude.has(x.id));
+    while (out.length < n && out.length < pool.length) {
+      let r = Math.random(), d = 3;
+      for (const x of [1, 2, 3]) { if ((r -= w[x]) < 0) { d = x; break; } }
+      const left = pool.filter((x) => !out.includes(x));
+      const same = left.filter((x) => itemLevel(x.id) === d);
+      out.push(...leastSeen(same.length ? same : left, 1));
+    }
+    return out;
+  }
+  const adaptiveOn = () => S.settings.adaptive !== false;
+
   const masteredCount = () => Object.values(S.srs).filter((s) => s.box >= 3).length;
   const totalCorrect = () => Object.values(S.stats).reduce((a, s) => a + s.c, 0);
   const BADGES = [
@@ -682,10 +735,21 @@
     const prefix = list.length ? list[0].id.split(':')[0] + ':' : '';
     const byId = Object.fromEntries(list.map((x) => [x.id, x]));
     const rev = dueMistakeIds(prefix, sets).map((id) => byId[id]).filter(Boolean).slice(0, Math.max(1, Math.round(n * 0.3)));
-    const rest = leastSeen(list.filter((x) => !rev.includes(x)), n - rev.length);
+    const left = list.filter((x) => !rev.includes(x));
+    const sec = 'part' + prefix[1];
+    const rest = adaptiveOn() && PARTS7.includes(sec) ? pickAdaptive(left, n - rev.length, sec) : leastSeen(left, n - rev.length);
     return { items: shuffle([...rev, ...rest]), isReview: (x) => rev.includes(x) };
   }
-  const tagReview = (q, yes) => { if (yes) q.isReview = true; return q; };
+  const tagReview = (q, yes) => { if (yes) q.isReview = true; if (adaptiveOn()) q.lvl = itemLevel(q.id); return q; };
+  // Part 1/2/5：每答一題，就依最新實力重挑下一題（複習題不動）
+  function adaptNext(list, build, sec) {
+    return (s) => {
+      if (!adaptiveOn() || s.i + 1 >= s.questions.length || s.questions[s.i + 1].isReview) return;
+      const used = new Set(s.questions.map((q) => q.id));
+      const [x] = pickAdaptive(list, 1, sec, used);
+      if (x) s.questions[s.i + 1] = tagReview(build(x), false);
+    };
+  }
 
   // 優先出比較少練過的題目
   function leastSeen(list, n) {
@@ -759,7 +823,7 @@
         </div>` : ''}
       ${s.timer ? '<div class="timer"><div id="timerbar"></div></div>' : ''}
       <div class="qcard${SPLIT_SECTIONS.includes(q.section) ? ' split' : ''}${q.kind === 'group' ? ' group' : ''}"><div class="q-left">
-        <div class="qtag">${q.tag}${q.isNew ? '<span class="new">NEW</span>' : ''}${q.isReview ? '<span class="new review" title="以前答錯過，到期複習">🔁 複習</span>' : ''}</div>
+        <div class="qtag">${q.tag}${q.isNew ? '<span class="new">NEW</span>' : ''}${q.isReview ? '<span class="new review" title="以前答錯過，到期複習">🔁 複習</span>' : ''}${q.lvl ? `<span class="lvchip lv${q.lvl}" title="自動調整難度（依你目前的實力挑題）">${['', '簡單', '中等', '困難'][q.lvl]}</span>` : ''}</div>
         <div class="qprompt">${q.prompt}<div id="hintText"></div></div>
         ${q.audio ? `<div class="audio-row">
             <button class="btn-audio" id="play">🔊 播放</button>
@@ -938,6 +1002,8 @@
     const last = s.results[s.results.length - 1];
     if (last) last.chosen = q.kind === 'choice' && choice >= 0 ? q.options[choice] : null;
     if (s.onAnswer) s.onAnswer(s);
+    if (s.adapt) s.adapt(s);
+    const qc = document.querySelector('.qcard'); if (qc) qc.classList.add('answered');
     Sfx.play(correct ? 'ok' : 'ng');
     if (s.boss) bossEffect(correct);
     if (s.mode === 'monster' && correct && !S.mistakes[q.id]) {
@@ -1081,6 +1147,9 @@
     rollDaily();
     const before = levelInfo(S.xp).level;
     const st = S.stats[q.section]; st.t++; if (correct) st.c++;
+    const day = dayLog(); day.n++; if (correct) day.c++;
+    const ds = (day.sec[q.section] = day.sec[q.section] || { c: 0, t: 0 }); ds.t++; if (correct) ds.c++;
+    updateSkill(q, correct);
     const bucket = LISTENING_SECTIONS.includes(q.section) ? 'listening' : READING_SECTIONS.includes(q.section) ? 'reading' : null;
     if (bucket) {
       S.recent[bucket].push(correct ? 1 : 0);
@@ -1176,6 +1245,7 @@
     if (total >= 10 && s.correct === total) { S.perfectRounds++; confetti(); }
     checkBadges();
     save();
+    markTask(s.modeKey);
     if (s.onFinish) return s.onFinish(s);
 
     const wrong = s.results.filter((r) => !r.correct);
@@ -1241,19 +1311,85 @@
 
   $('#brand').onclick = goHome;
 
+  // ───────────────────────── 點單字 → 查意思、收進單字本 ─────────────────────────
+  function lemmaOf(raw) {
+    const w = raw.toLowerCase().replace(/^[^a-z]+|[^a-z]+$/g, '').replace(/[’]/g, "'").replace(/'s$/, '');
+    if (!w) return null;
+    const c = [w];
+    if (w.endsWith('ies')) c.push(w.slice(0, -3) + 'y');
+    if (w.endsWith('ied')) c.push(w.slice(0, -3) + 'y');
+    if (w.endsWith('es')) c.push(w.slice(0, -2));
+    if (w.endsWith('s')) c.push(w.slice(0, -1));
+    if (w.endsWith('ed')) c.push(w.slice(0, -2), w.slice(0, -1), w.slice(0, -3));
+    if (w.endsWith('ing')) c.push(w.slice(0, -3), w.slice(0, -3) + 'e', w.slice(0, -4));
+    if (w.endsWith('ly')) c.push(w.slice(0, -2));
+    for (const x of c) if (WORD_BY_LOWER[x]) return { word: WORD_BY_LOWER[x], text: w };
+    return { word: null, text: w };
+  }
+  function wordAtPoint(x, y) {
+    let node, off;
+    if (document.caretRangeFromPoint) { const r = document.caretRangeFromPoint(x, y); if (!r) return null; node = r.startContainer; off = r.startOffset; }
+    else if (document.caretPositionFromPoint) { const p = document.caretPositionFromPoint(x, y); if (!p) return null; node = p.offsetNode; off = p.offset; }
+    if (!node || node.nodeType !== 3) return null;
+    const t = node.textContent;
+    let a = off, b = off;
+    while (a > 0 && /[A-Za-z'’-]/.test(t[a - 1])) a--;
+    while (b < t.length && /[A-Za-z'’-]/.test(t[b])) b++;
+    const w = t.slice(a, b);
+    return /[A-Za-z]{2,}/.test(w) ? w : null;
+  }
+  function closePop() { const p = $('#wordPop'); if (p) p.remove(); }
+  function showWordPop(raw, x, y) {
+    closePop();
+    const hit = lemmaOf(raw);
+    if (!hit) return;
+    const w = hit.word, inDeck = w && S.srs[w.id];
+    const pop = document.createElement('div');
+    pop.id = 'wordPop';
+    pop.className = 'word-pop';
+    pop.innerHTML = w
+      ? `<div class="wp-hd"><b>${esc(w.w)}</b> <small>${esc(w.pos)}</small> ${sayBtn(w.w)}</div><div class="wp-zh">${esc(w.zh)}</div><div class="wp-ex">${esc(w.ex)}</div>
+         ${inDeck ? `<div class="wp-in">✓ 已在單字本・下次複習 ${esc(S.srs[w.id].due)}</div>` : '<button class="btn-primary wp-add">＋ 加入單字本</button>'}`
+      : `<div class="wp-hd"><b>${esc(hit.text)}</b></div><div class="wp-zh hint">單字庫裡沒有這個字</div>
+         <a class="btn-secondary wp-dict" target="_blank" rel="noopener" href="https://dictionary.cambridge.org/dictionary/english-chinese-traditional/${encodeURIComponent(hit.text)}">查 Cambridge 字典 ↗</a>`;
+    document.body.appendChild(pop);
+    const r = pop.getBoundingClientRect();
+    pop.style.left = Math.max(8, Math.min(innerWidth - r.width - 8, x - r.width / 2)) + 'px';
+    pop.style.top = (y + 16 + r.height > innerHeight ? y - r.height - 12 : y + 16) + 'px';
+    const add = pop.querySelector('.wp-add');
+    if (add) add.onclick = (e) => {
+      e.stopPropagation();
+      S.srs[w.id] = { box: 0, due: today() };
+      S.collected[w.id] = today();
+      save();
+      toast(`📚 已加入單字本：${w.w}（今天就會出現在單字複習）`);
+      closePop();
+    };
+  }
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#wordPop')) return;
+    closePop();
+    // 作答後才開放（作答中查單字等於看答案）
+    const zone = e.target.closest('#feedback, .qcard.answered .q-left, .qcard.answered .answers, .script-box, .review, .dq-prompt, .dq-picks, details');
+    if (!zone || e.target.closest('button, a, input, select, summary')) return;
+    const w = wordAtPoint(e.clientX, e.clientY);
+    if (w) showWordPop(w, e.clientX, e.clientY);
+  });
+  addEventListener('scroll', closePop, { passive: true });
+
   // ───────────────────────── 模式 ─────────────────────────
   const MODES = {
     vocab: {
       start() {
         const due = shuffle(dueWords()).slice(0, 10);
-        let words = due.concat(shuffle(newWords()).slice(0, 10 - due.length));
+        let words = due.concat(shuffle(newWords()).sort((a, b) => a.tier - b.tier).slice(0, 10 - due.length));
         if (!words.length) { words = shuffle(WORDS).slice(0, 10); toast('全部單字都學過了，隨機複習一輪！'); }
         startSession({ modeKey: 'vocab', questions: words.map((w) => vocabQ(w, vocabKindFor(w), true)) });
       },
     },
-    part5: { start() { startSession({ modeKey: 'part5', questions: singles(P5, 10, p5Q) }); } },
-    part2: { start() { startSession({ modeKey: 'part2', questions: singles(P2, 10, p2Q) }); } },
-    part1: { start() { startSession({ modeKey: 'part1', questions: singles(P1, 6, p1Q) }); } },
+    part5: { start() { startSession({ modeKey: 'part5', questions: singles(P5, 10, p5Q), adapt: adaptNext(P5, p5Q, 'part5') }); } },
+    part2: { start() { startSession({ modeKey: 'part2', questions: singles(P2, 10, p2Q), adapt: adaptNext(P2, p2Q, 'part2') }); } },
+    part1: { start() { startSession({ modeKey: 'part1', questions: singles(P1, 6, p1Q), adapt: adaptNext(P1, p1Q, 'part1') }); } },
     part3: { start() { startSession({ modeKey: 'part3', questions: groups(P3, 3, p3Q, '聽對話') }); } },
     part4: { start() { startSession({ modeKey: 'part4', questions: groups(P4, 3, p4Q, '聽獨白') }); } },
     part6: { start() { startSession({ modeKey: 'part6', questions: setQuestions(P6, 2, p6Q) }); } },
@@ -1264,7 +1400,8 @@
         const due = dueMistakeIds('p7:', true).map((id) => P7.find((x) => x.id === id)).filter(Boolean).slice(0, 1);
         const sets = [...due];
         let n = due.reduce((a, x) => a + x.qs.length, 0);
-        for (const set of leastSeen(P7.filter((x) => !due.includes(x)), P7.length)) { if (n >= 8) break; sets.push(set); n += set.qs.length; }
+        const rest = P7.filter((x) => !due.includes(x));
+        for (const set of adaptiveOn() ? pickAdaptive(rest, rest.length, 'part7') : leastSeen(rest, rest.length)) { if (n >= 8) break; sets.push(set); n += set.qs.length; }
         startSession({ modeKey: 'part7', questions: sets.flatMap((set) => set.qs.map((_, i) => tagReview(p7Q(set, i), due.includes(set)))) });
       },
     },
@@ -1301,6 +1438,44 @@
     },
   };
 
+  // ───────────────────────── 今日任務 ─────────────────────────
+  const PART_LABEL = { part1: 'Part 1 看圖描述', part2: 'Part 2 應答問題', part3: 'Part 3 對話', part4: 'Part 4 獨白', part5: 'Part 5 句子填空', part6: 'Part 6 短文填空', part7: 'Part 7 閱讀' };
+  function rollTasks() { if (S.tasks.date !== today()) S.tasks = { date: today(), done: {} }; }
+  function markTask(key) { rollTasks(); if (key) S.tasks.done[key] = true; }
+  // 最弱的 Part：實力分數最低（有練過的優先；都沒練過就從 Part 2 開始）
+  function weakestPart() {
+    const tried = PARTS7.filter((k) => (S.stats[k] || {}).t >= 5);
+    return tried.length ? tried.sort((a, b) => skillOf(a) - skillOf(b))[0] : 'part2';
+  }
+  function todayTasks() {
+    rollTasks();
+    const d = S.tasks.done, list = [];
+    const due = dueWords().length;
+    list.push({ key: 'vocab', icon: '📚', text: due ? `複習 ${Math.min(10, due)} 個到期單字` : '學 10 個新單字', done: !!d.vocab });
+    const weak = weakestPart();
+    list.push({ key: weak, icon: '🎯', text: `加強 ${PART_LABEL[weak]}`, sub: (S.stats[weak] || {}).t >= 5 ? `你目前最弱的一部分・實力 ${skillOf(weak)}` : '先從最常考的應答題開始', done: !!d[weak] });
+    const dm = dueMistakeCount();
+    if (dm || d.monster) list.push({ key: 'monster', icon: '👾', text: `清掉到期錯題（${dm} 隻）`, done: !!d.monster || dm === 0 });
+    if (window.Cloud && window.Cloud.loggedIn()) list.push({ key: 'daily', icon: '📅', text: '完成每日挑戰', done: window.Cloud.dailyDone() });
+    const full = S.exams.filter((e) => e.testId !== 'MINI');
+    const lastDays = full.length ? Math.round((new Date(today()) - new Date(full[full.length - 1].date)) / 864e5) : null;
+    if (lastDays == null || lastDays >= 14) list.push({ key: 'mock', icon: '📝', optional: true, text: lastDays == null ? '考一回完整模擬考，測出起點' : `距離上次模擬考 ${lastDays} 天，可以再考一回`, sub: '選做・約 2 小時', done: false });
+    return list;
+  }
+  function tasksCard() {
+    const list = todayTasks(), need = list.filter((t) => !t.optional), n = need.filter((t) => t.done).length;
+    return `<section class="card tasks">
+      <div class="tasks-hd"><b>📋 今日任務</b><span class="${n === need.length ? 'all' : ''}">${n === need.length ? '全部完成 🎉' : `${n}/${need.length}`}</span></div>
+      ${list.map((t) => `<button class="task${t.done ? ' done' : ''}${t.optional ? ' opt' : ''}" data-task="${t.key}">
+        <span class="t-ic">${t.done ? '✅' : t.icon}</span><span class="t-tx">${t.text}${t.sub ? `<small>${t.sub}</small>` : ''}</span><span class="t-go">${t.done ? '' : '›'}</span></button>`).join('')}
+    </section>`;
+  }
+  function runTask(key) {
+    if (key === 'daily') return document.getElementById('dailyCard') && document.getElementById('dailyCard').click();
+    if (key === 'mock') return document.getElementById('examCard') && document.getElementById('examCard').click();
+    if (MODES[key]) MODES[key].start();
+  }
+
   // ───────────────────────── 首頁 ─────────────────────────
   function renderHome() {
     session = null; stopTimer(); Speech.stop(); rollDaily();
@@ -1333,7 +1508,7 @@
       </header>
 
       <section class="card">
-        <div class="score-title">📈 粗估多益分數 <small>依最近作答推算</small></div>
+        <div class="score-title">📈 粗估多益分數 <small>依最近作答推算</small><button class="link score-more" id="btnProgress">我的進步 ›</button></div>
         <div class="score-row">
           <div><span>聽力</span><b>${est.l ?? '—'}</b></div>
           <div><span>閱讀</span><b>${est.r ?? '—'}</b></div>
@@ -1345,6 +1520,7 @@
       </section>
       </div>
 
+      ${tasksCard()}
       ${window.Cloud ? window.Cloud.homeCard() : ''}
       ${window.Exam ? window.Exam.homeCard('top') : ''}
       </aside><div class="home-main">
@@ -1384,6 +1560,8 @@
       </div></div>`;
 
     document.querySelectorAll('[data-mode]').forEach((b) => { b.onclick = () => MODES[b.dataset.mode].start(); });
+    document.querySelectorAll('[data-task]').forEach((b) => { b.onclick = () => runTask(b.dataset.task); });
+    const pg = $('#btnProgress'); if (pg) pg.onclick = () => window.Progress && window.Progress.show();
     if (window.Exam) window.Exam.bindHome();
     $('#btnSettings').onclick = showSettings;
     $('#btnBadges').onclick = showBadges;
@@ -1459,6 +1637,7 @@
         <select id="setPreview">${[[0, '關閉'], [5, '5 秒'], [10, '10 秒'], [15, '15 秒（建議）'], [20, '20 秒'], [30, '30 秒']].map(([v, t]) => `<option value="${v}" ${st.preview === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
       <label class="setting"><span>每日目標題數</span><input type="number" id="setGoal" min="5" max="200" value="${st.dailyGoal}"></label>
       <label class="setting"><span>音效</span><input type="checkbox" id="setSound" ${st.sound ? 'checked' : ''}></label>
+      <label class="setting"><span>自動調整難度 <small>依實力挑題，答對率維持約 80%</small></span><input type="checkbox" id="setAdaptive" ${st.adaptive !== false ? 'checked' : ''}></label>
       <button class="btn-secondary" id="testVoice">🔊 試聽語音</button>
       <details class="hint" style="text-align:left"><summary>沒有音檔時的備用語音（瀏覽器內建）</summary>
         <label class="setting"><span>口音</span>
@@ -1471,6 +1650,7 @@
     $('#setAccent').onchange = (e) => { st.accent = e.target.value; save(); };
     $('#setGoal').onchange = (e) => { st.dailyGoal = Math.max(5, Math.min(200, +e.target.value || 30)); save(); };
     $('#setSound').onchange = (e) => { st.sound = e.target.checked; save(); };
+    $('#setAdaptive').onchange = (e) => { st.adaptive = e.target.checked; save(); };
     $('#setPreview').onchange = (e) => { st.preview = +e.target.value; save(); };
     $('#setAi').onchange = (e) => { st.aiVoice = e.target.checked; save(); };
     $('#testVoice').onclick = () => Speech.play([{ text: 'Where is the nearest post office?', role: 'W' }, { pause: 300 }, { text: 'It\'s just around the corner.', role: 'M' }], 'p3:0');
@@ -1540,6 +1720,7 @@
     stopSession() { session = null; stopTimer(); },
     // 給 js/cloud.js（登入、雲端進度、排行榜）使用
     defaultState, weekId, currentStreak, totalCorrect, questionFromId, startSession, goHome,
+    skillOf, skillLabel, PARTS7, PART_LABEL, LEVEL_RATING, masteredCount, WORDS,
     replaceState(data) { S = merge(defaultState(), data || {}); save(); },
   };
 

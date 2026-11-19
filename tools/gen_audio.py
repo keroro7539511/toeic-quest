@@ -81,7 +81,7 @@ def build_jobs(d):
     def single(text, voice):
         jobs.setdefault('t:' + text, [('say', voice, text)])
 
-    for w, _pos, _zh, ex, _cat in d['VOCAB']:
+    for w, _pos, _zh, ex, *_rest in d['VOCAB']:   # 第 6 欄是級別（舊資料沒有）
         single(w, rng('w' + w).choice(WORD_VOICES))
         single(ex, rng('e' + ex).choice(FEMALE + MALE))
 

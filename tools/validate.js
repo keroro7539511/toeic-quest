@@ -149,6 +149,22 @@ for (const name of Object.keys(W).filter((k) => /^MOCK\d+$/.test(k))) {
   summary.push(`${name}: ${total} 題（${parts.join(', ')}）`);
 }
 
+// 單字：不可重複、欄位齊全、級別 1–3（舊資料沒有級別 = 當作 2）
+if (W.VOCAB) {
+  const seen = new Set(), CATS = ['office', 'meeting', 'travel', 'hr', 'finance', 'marketing', 'production', 'general'];
+  const tiers = { 1: 0, 2: 0, 3: 0 };
+  W.VOCAB.forEach((v, i) => {
+    const w = `VOCAB[${i}] ${v && v[0]}`;
+    if (!Array.isArray(v) || v.length < 5 || !v.slice(0, 5).every(isStr)) return err(w, '格式應為 [單字, 詞性, 中文, 例句, 分類, 級別]');
+    const k = v[0].toLowerCase();
+    if (seen.has(k)) err(w, '單字重複'); seen.add(k);
+    if (!CATS.includes(v[4])) err(w, `未知分類 ${v[4]}`);
+    if (v[5] != null && ![1, 2, 3].includes(v[5])) err(w, '級別只能是 1、2、3');
+    tiers[v[5] || 2]++;
+  });
+  summary.push(`單字：${W.VOCAB.length} 個（級別 1/2/3：${tiers[1]}/${tiers[2]}/${tiers[3]}）`);
+}
+
 // 難度（data/diff/）：每題（Part 3/4/6/7 為每組）都要有 1/2/3；小模考照 30/40/30 抽題
 {
   const D = W.DIFF || {};
