@@ -656,8 +656,36 @@
   }
 
   function setQuestions(list, nSets, build) {
-    return leastSeen(list, nSets).flatMap((set) => set.qs.map((_, i) => build(set, i)));
+    const { items, isReview } = withReview(list, nSets, true);
+    return items.flatMap((set) => set.qs.map((_, i) => tagReview(build(set, i), isReview(set))));
   }
+  // 單題型（Part 1/2/5）
+  function singles(list, n, build) {
+    const { items, isReview } = withReview(list, n);
+    return items.map((x) => tagReview(build(x), isReview(x)));
+  }
+  // 題組型（Part 3/4）
+  function groups(list, n, build, label) {
+    const { items, isReview } = withReview(list, n, true);
+    return items.map((x) => tagReview(groupQ(x, build, label), isReview(x)));
+  }
+
+  // 到期的錯題（沒有 due 的舊資料當作已到期）。題組題的 id 是 p3:5.1 → 回傳整組 p3:5
+  function dueMistakeIds(prefix, sets) {
+    const t = today(), out = new Set();
+    for (const [id, m] of Object.entries(S.mistakes)) if (id.startsWith(prefix) && (!m.due || m.due <= t)) out.add(sets ? id.split('.')[0] : id);
+    return shuffle([...out]);
+  }
+  const dueMistakeCount = () => Object.values(S.mistakes).filter((m) => !m.due || m.due <= today()).length;
+  // 每回合最多 30%（至少 1 題）放到期的錯題，標成「🔁 複習」；其餘照「少練過的優先」
+  function withReview(list, n, sets = false) {
+    const prefix = list.length ? list[0].id.split(':')[0] + ':' : '';
+    const byId = Object.fromEntries(list.map((x) => [x.id, x]));
+    const rev = dueMistakeIds(prefix, sets).map((id) => byId[id]).filter(Boolean).slice(0, Math.max(1, Math.round(n * 0.3)));
+    const rest = leastSeen(list.filter((x) => !rev.includes(x)), n - rev.length);
+    return { items: shuffle([...rev, ...rest]), isReview: (x) => rev.includes(x) };
+  }
+  const tagReview = (q, yes) => { if (yes) q.isReview = true; return q; };
 
   // 優先出比較少練過的題目
   function leastSeen(list, n) {
@@ -731,7 +759,7 @@
         </div>` : ''}
       ${s.timer ? '<div class="timer"><div id="timerbar"></div></div>' : ''}
       <div class="qcard${SPLIT_SECTIONS.includes(q.section) ? ' split' : ''}${q.kind === 'group' ? ' group' : ''}"><div class="q-left">
-        <div class="qtag">${q.tag}${q.isNew ? '<span class="new">NEW</span>' : ''}</div>
+        <div class="qtag">${q.tag}${q.isNew ? '<span class="new">NEW</span>' : ''}${q.isReview ? '<span class="new review" title="以前答錯過，到期複習">🔁 複習</span>' : ''}</div>
         <div class="qprompt">${q.prompt}<div id="hintText"></div></div>
         ${q.audio ? `<div class="audio-row">
             <button class="btn-audio" id="play">🔊 播放</button>
@@ -1079,16 +1107,17 @@
       s.combo = 0;
     }
 
-    if (s.mode === 'monster') {
-      const m = S.mistakes[q.id];
-      if (m) {
-        if (correct) {
-          m.hp--;
-          if (m.hp <= 0) { delete S.mistakes[q.id]; S.monstersDefeated++; s.killed++; xp += 20; }
-        } else m.hp = 2;
-      }
+    // 錯題間隔複習：答錯 → 隔天再出現；複習答對一次 → 3 天後再考；再答對 → 打倒怪物（學會了）
+    // 一般練習和錯題怪物模式都算數
+    const m = S.mistakes[q.id];
+    if (correct && m) {
+      m.hp--;
+      if (m.hp <= 0) {
+        delete S.mistakes[q.id]; S.monstersDefeated++; s.killed++; xp += 20;
+        if (s.mode !== 'monster') toast('👾 打倒一隻錯題怪物！+20 XP');
+      } else m.due = addDays(today(), 3);
     } else if (!correct) {
-      S.mistakes[q.id] = { hp: 2 };
+      S.mistakes[q.id] = { hp: 2, due: addDays(today(), 1) };
     }
 
     if (q.after) q.after(correct);
@@ -1222,19 +1251,21 @@
         startSession({ modeKey: 'vocab', questions: words.map((w) => vocabQ(w, vocabKindFor(w), true)) });
       },
     },
-    part5: { start() { startSession({ modeKey: 'part5', questions: leastSeen(P5, 10).map(p5Q) }); } },
-    part2: { start() { startSession({ modeKey: 'part2', questions: leastSeen(P2, 10).map(p2Q) }); } },
-    part1: { start() { startSession({ modeKey: 'part1', questions: leastSeen(P1, 6).map(p1Q) }); } },
-    part3: { start() { startSession({ modeKey: 'part3', questions: leastSeen(P3, 3).map((c) => groupQ(c, p3Q, '聽對話')) }); } },
-    part4: { start() { startSession({ modeKey: 'part4', questions: leastSeen(P4, 3).map((t) => groupQ(t, p4Q, '聽獨白')) }); } },
+    part5: { start() { startSession({ modeKey: 'part5', questions: singles(P5, 10, p5Q) }); } },
+    part2: { start() { startSession({ modeKey: 'part2', questions: singles(P2, 10, p2Q) }); } },
+    part1: { start() { startSession({ modeKey: 'part1', questions: singles(P1, 6, p1Q) }); } },
+    part3: { start() { startSession({ modeKey: 'part3', questions: groups(P3, 3, p3Q, '聽對話') }); } },
+    part4: { start() { startSession({ modeKey: 'part4', questions: groups(P4, 3, p4Q, '聽獨白') }); } },
     part6: { start() { startSession({ modeKey: 'part6', questions: setQuestions(P6, 2, p6Q) }); } },
     part7: {
       start() {
         // 湊到 8 題以上，多篇閱讀一組就有 5 題
-        const sets = [];
-        let n = 0;
-        for (const set of leastSeen(P7, P7.length)) { if (n >= 8) break; sets.push(set); n += set.qs.length; }
-        startSession({ modeKey: 'part7', questions: sets.flatMap((set) => set.qs.map((_, i) => p7Q(set, i))) });
+        // 先放 1 組到期的錯題（如果有），再補少練過的
+        const due = dueMistakeIds('p7:', true).map((id) => P7.find((x) => x.id === id)).filter(Boolean).slice(0, 1);
+        const sets = [...due];
+        let n = due.reduce((a, x) => a + x.qs.length, 0);
+        for (const set of leastSeen(P7.filter((x) => !due.includes(x)), P7.length)) { if (n >= 8) break; sets.push(set); n += set.qs.length; }
+        startSession({ modeKey: 'part7', questions: sets.flatMap((set) => set.qs.map((_, i) => tagReview(p7Q(set, i), due.includes(set)))) });
       },
     },
     dict: { start() { startSession({ modeKey: 'dict', questions: leastSeen(DICT_POOL, 6).map(dictQ) }); } },
@@ -1340,7 +1371,7 @@
 
       <h2 class="sec-title">⚔️ 挑戰</h2>
       <section class="modes">
-        ${mode('monster', '👾', '錯題怪物', mons ? `<span class="pill">${mons} 隻</span> 等你討伐` : '目前沒有怪物', 'monster')}
+        ${mode('monster', '👾', '錯題怪物', mons ? `<span class="pill">${mons} 隻</span> 今天 ${dueMistakeCount()} 隻會混進練習` : '目前沒有怪物', 'monster')}
         ${mode('boss', boss.emoji, `Boss：${boss.name}`, `Lv.${boss.lv}・HP ${boss.hp}・4 條命`, 'boss')}
       </section>
 

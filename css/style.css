@@ -650,3 +650,4 @@ body:has(.auth) .topbar { display: none; }
   .exgroup .exq .qline { display: none; }
   .exgroup .graphic { font-size: 13px; padding: 8px 10px; }
 }
+.new.review { background: var(--primary); }
